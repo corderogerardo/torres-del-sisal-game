@@ -16,12 +16,22 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      # Without the Cloudflare token this can't deploy. Skip cleanly (green run,
+      # no failure email) instead of erroring. Deploy manually with ./deploy.sh,
+      # or add the CLOUDFLARE_API_TOKEN secret to enable auto-deploy.
+      - name: No Cloudflare token — skipping auto-deploy
+        if: ${{ env.CF_API_TOKEN == '' }}
+        run: |
+          echo "::notice title=Auto-deploy skipped::CLOUDFLARE_API_TOKEN secret is not set. The site was NOT deployed by this run. Add the secret to enable auto-deploy, or run ./deploy.sh locally."
+
       - name: Stamp build version (commit SHA + date)
-        env:
-          FULL_SHA: ${{ github.sha }}
+        if: ${{ env.CF_API_TOKEN != '' }}
         run: |
           SHA="$(git rev-parse --short HEAD)"
           DATE="$(date -u +%Y-%m-%d)"
@@ -30,8 +40,9 @@ jobs:
           echo "Stamped build ${SHA} (${DATE})"
 
       - name: Deploy to Cloudflare Pages
+        if: ${{ env.CF_API_TOKEN != '' }}
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ env.CF_API_TOKEN }}
+          accountId: ${{ env.CF_ACCOUNT_ID }}
           command: pages deploy public --project-name=torres-del-sisal --branch=main --commit-hash=${{ github.sha }}
