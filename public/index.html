@@ -12,8 +12,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Cinzel:wght@700;900&display=swap" rel="stylesheet">
-<!-- Three.js r128 (MIT) vendored locally — no CDN, no SRI/CORS failure surface, works offline -->
-<script src="./three.min.js"></script>
+<!-- Three.js r128 (MIT) vendored locally. data-cfasync="false" opts out of Cloudflare Rocket Loader,
+     which otherwise defers scripts past DOMContentLoaded and breaks init on Rocket-Loader-enabled zones. -->
+<script src="./three.min.js" data-cfasync="false"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;background:#05070a;overflow:hidden}
@@ -162,7 +163,7 @@
     </div>
   </div>
 
-<script>
+<script data-cfasync="false">
 "use strict";
 window.TDS_BUILD = 'v4';
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
@@ -1040,7 +1041,9 @@ class Game {
   _release(){ const ctx=this._audioCtx; if(!ctx) return; const t=ctx.currentTime; [523,659,784].forEach(f=>{ const o=ctx.createOscillator(),g=ctx.createGain(); o.type='sine'; o.frequency.value=f; g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(.09,t+.4); g.gain.linearRampToValueAtTime(.0001,t+2.2); o.connect(g); g.connect(this._master); o.start(t); o.stop(t+2.3); }); }
 }
 
-window.addEventListener('DOMContentLoaded',()=>{ try{ window._game = new Game(); console.log('[TDS] build', window.TDS_BUILD, 'loaded · THREE=', typeof window.THREE); }catch(err){ showFatal('init: '+(err&&(err.stack||err.message)||err)); } });
+function boot(){ if(window._game) return; try{ window._game = new Game(); console.log('[TDS] build', window.TDS_BUILD, 'loaded · THREE=', typeof window.THREE); }catch(err){ showFatal('init: '+(err&&(err.stack||err.message)||err)); } }
+// If the script runs after DOMContentLoaded (e.g. deferred by Rocket Loader), boot immediately.
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 </script>
 </body>
 </html>
