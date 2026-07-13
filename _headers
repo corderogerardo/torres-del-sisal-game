@@ -1,0 +1,9 @@
+# Never let a browser serve a stale copy of the game shell.
+/
+  Cache-Control: no-store
+/index.html
+  Cache-Control: no-store
+
+# The vendored library is content-addressed by revision; cache it hard.
+/three.min.js
+  Cache-Control: public, max-age=31536000, immutable

@@ -148,7 +148,7 @@
         <button class="diffbtn" data-diff="Pesadilla">Pesadilla</button>
       </div>
       <button id="enterBtn" class="btn" style="margin-top:24px">Entrar ▸</button>
-      <div style="margin-top:20px;font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:rgba(241,250,238,.4)">Contenido de terror · Usa audífonos · Teclado + ratón</div>
+      <div style="margin-top:20px;font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:rgba(241,250,238,.4)">Contenido de terror · Usa audífonos · Teclado + ratón · <span id="buildTag">build v4</span></div>
     </div>
   </div>
 
@@ -164,6 +164,10 @@
 
 <script>
 "use strict";
+window.TDS_BUILD = 'v4';
+function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
+window.addEventListener('error', function(e){ showFatal((e.error&&e.error.stack)||e.message||('error @ '+e.filename+':'+e.lineno)); });
+window.addEventListener('unhandledrejection', function(e){ showFatal('promesa: '+((e.reason&&(e.reason.stack||e.reason.message))||e.reason)); });
 const MEMENTOS = [
   {name:'La foto de tu madre',      mem:'Su risa en la cocina. El olor a café con leche.'},
   {name:'El dibujo de tu hija',     mem:'«PAPÁ» escrito con crayón rojo, todo torcido.'},
@@ -264,7 +268,11 @@ class Game {
   _initThree(){
     const T=window.THREE, el=this.stage; if(!el) return;
     const w=el.clientWidth||innerWidth, h=el.clientHeight||innerHeight;
-    const renderer=new T.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(w,h);
+    let renderer;
+    try{ renderer=new T.WebGLRenderer({antialias:true}); }
+    catch(err){ showFatal('No se pudo crear WebGL: '+(err&&err.message||err)); return; }
+    if(!renderer||!renderer.getContext||!renderer.getContext()){ showFatal('WebGL no disponible en este navegador.'); return; }
+    renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(w,h);
     renderer.outputEncoding=T.sRGBEncoding; el.appendChild(renderer.domElement); this.renderer=renderer;
     const scene=new T.Scene(); scene.background=new T.Color(0x05070a); scene.fog=new T.FogExp2(0x05070a,.05); this.scene=scene;
     const camera=new T.PerspectiveCamera(74,w/h,.1,240); camera.rotation.order='YXZ'; camera.position.set(0,1.7,-4); this.camera=camera;
@@ -994,6 +1002,11 @@ class Game {
     this._lockT=setTimeout(()=>{ if(!document.pointerLockElement) fallback(); },700);
   }
   start(){
+    if(typeof window.THREE==='undefined'){ showFatal('Three.js no cargó. Recarga sin caché (Safari: mantén Mayús y pulsa Recargar).'); return; }
+    if(!this.renderer){ this._initThree(); if(!this.renderer){ showFatal('WebGL no disponible en este navegador. Prueba activar la aceleración por hardware.'); return; } }
+    try{ this._start(); }catch(err){ showFatal('start(): '+(err&&(err.stack||err.message)||err)); }
+  }
+  _start(){
     this._dread=0; this._ascending=false; this.torchOn=true; this.torchBattery=100; this._stam=100;
     this.ammo=0; this.rescueT=-1; this.phoneUsed=false; this.pistolTaken=false; this.callMade=false; this.hidden=null;
     this.mementos=0; this.collected=[]; this.temptation=0; this.lifelines=0; this.mementoCollected=false;
