@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Remember plugin local state
+.remember/
+
+# Editor / OS cruft
+*.swp
+Thumbs.db
+
+# Local build/tooling
+node_modules/
+.wrangler/
