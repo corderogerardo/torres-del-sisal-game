@@ -23,7 +23,7 @@ A first-person horror game set in the cursed *Torres del Sisal*, steeped in the 
 
 ## Tech
 
-A single self-contained `index.html` — no build step, no framework, no bundler. Rendering is [Three.js](https://threejs.org/) (r128, pinned with Subresource Integrity); all sound is synthesized live with the Web Audio API. It runs anywhere a modern browser and a keyboard + mouse are available.
+`index.html` plus a locally vendored `three.min.js` — no build step, no framework, no bundler, no CDN. Rendering is [Three.js](https://threejs.org/) r128 (MIT, served from the repo so it can't break on a CDN or SRI hiccup); all sound is synthesized live with the Web Audio API. It runs anywhere a modern browser and a keyboard + mouse are available, even offline.
 
 Originally prototyped in [Claude Design](https://claude.ai/design) (see `project/` for the original handoff bundle) and rebuilt as a standalone game.
 
