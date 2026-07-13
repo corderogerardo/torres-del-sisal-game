@@ -1002,6 +1002,7 @@ class Game {
     this._lockT=setTimeout(()=>{ if(!document.pointerLockElement) fallback(); },700);
   }
   start(){
+    console.log('[TDS] Entrar clicked · build', window.TDS_BUILD, '· THREE=', typeof window.THREE, '· renderer=', !!this.renderer);
     if(typeof window.THREE==='undefined'){ showFatal('Three.js no cargó. Recarga sin caché (Safari: mantén Mayús y pulsa Recargar).'); return; }
     if(!this.renderer){ this._initThree(); if(!this.renderer){ showFatal('WebGL no disponible en este navegador. Prueba activar la aceleración por hardware.'); return; } }
     try{ this._start(); }catch(err){ showFatal('start(): '+(err&&(err.stack||err.message)||err)); }
@@ -1014,6 +1015,7 @@ class Game {
     this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
     this._startAudio(); this.buildFloor(1); this._lock();
     this._banner('PISO 01 · '+this.theme.name);
+    console.log('[TDS] entered · floor 1 ·', this.theme.name);
   }
 
   _noise(ctx,secs){ const b=ctx.createBuffer(1,ctx.sampleRate*secs,ctx.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
@@ -1038,7 +1040,7 @@ class Game {
   _release(){ const ctx=this._audioCtx; if(!ctx) return; const t=ctx.currentTime; [523,659,784].forEach(f=>{ const o=ctx.createOscillator(),g=ctx.createGain(); o.type='sine'; o.frequency.value=f; g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(.09,t+.4); g.gain.linearRampToValueAtTime(.0001,t+2.2); o.connect(g); g.connect(this._master); o.start(t); o.stop(t+2.3); }); }
 }
 
-window.addEventListener('DOMContentLoaded',()=>{ window._game = new Game(); });
+window.addEventListener('DOMContentLoaded',()=>{ try{ window._game = new Game(); console.log('[TDS] build', window.TDS_BUILD, 'loaded · THREE=', typeof window.THREE); }catch(err){ showFatal('init: '+(err&&(err.stack||err.message)||err)); } });
 </script>
 </body>
 </html>

@@ -27,18 +27,36 @@ A first-person horror game set in the cursed *Torres del Sisal*, steeped in the 
 
 Originally prototyped in [Claude Design](https://claude.ai/design) (see `project/` for the original handoff bundle) and rebuilt as a standalone game.
 
+## Project layout
+
+```
+public/            # everything that gets deployed
+  index.html       # the whole game
+  three.min.js     # vendored Three.js r128 (MIT)
+  _headers         # Cloudflare cache rules (no-store on HTML)
+.github/workflows/ # auto-deploy on push to main
+deploy.sh          # one-command manual deploy
+project/           # original Claude Design handoff bundle (reference only)
+```
+
 ## Run locally
 
 ```bash
-python3 -m http.server 8000
+cd public && python3 -m http.server 8000
 # open http://localhost:8000
 ```
 
 Any static file server works. Pointer lock and Web Audio require serving over `http://`/`https://` (not `file://`) in some browsers.
 
-## Deploy
+## Deploy & versioning
 
-Static site — deploys to [Cloudflare Pages](https://pages.cloudflare.com/) (or any static host). The whole game is `index.html`.
+Hosted on [Cloudflare Pages](https://pages.cloudflare.com/), project `torres-del-sisal`.
+
+- **Automatic:** every push to `main` triggers `.github/workflows/deploy.yml`, which stamps the commit short-SHA into the build (visible on the intro screen and in the console as `[TDS] build …`) and deploys `public/`. Requires two repo secrets: `CLOUDFLARE_API_TOKEN` (a token with *Pages → Edit*) and `CLOUDFLARE_ACCOUNT_ID`.
+- **Manual:** `./deploy.sh` does the same thing from your machine (uses your local `wrangler` login).
+- **No stale builds:** `public/_headers` serves the HTML with `Cache-Control: no-store`, so browsers always fetch the current shell; the vendored `three.min.js` is cached `immutable`. Cloudflare keeps a full history of deployments — roll back to any previous build from the Pages dashboard.
+
+Every deployment is content-addressable at `https://<hash>.torres-del-sisal.pages.dev`; the production alias (`torres-del-sisal.pages.dev` and any attached custom domain) always serves the latest.
 
 ---
 
