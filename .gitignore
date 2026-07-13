@@ -12,3 +12,6 @@ Thumbs.db
 # Local build/tooling
 node_modules/
 .wrangler/
+
+# Local Cloudflare Pages deploy staging
+.cfdist/
