@@ -23,6 +23,8 @@
   .vignette{pointer-events:none;box-shadow:inset 0 0 240px 70px rgba(0,0,0,.92)}
   .redveil{pointer-events:none;background:radial-gradient(circle at 50% 56%, rgba(230,57,70,0) 34%, rgba(230,57,70,.6) 100%);transition:opacity .25s ease;opacity:0}
   .scan{pointer-events:none;opacity:.06;background:repeating-linear-gradient(0deg,#000 0,#000 1px,transparent 2px,transparent 3px);mix-blend-mode:overlay}
+  #reticle{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;color:#A8DADC;opacity:.85;z-index:6;filter:drop-shadow(0 0 1.5px rgba(0,0,0,.95));transition:color .1s ease,transform .1s ease}
+  #reticle.armed{transform:translate(-50%,-50%) scale(1.28)}
   @keyframes bannerIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.9)}14%{opacity:1}82%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1.06)}}
   @keyframes creep{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}
   @keyframes barGlow{0%,100%{box-shadow:0 0 8px #E63946}50%{box-shadow:0 0 18px #E63946}}
@@ -49,6 +51,15 @@
 
   <!-- ============ HUD (playing) ============ -->
   <div id="hud" class="fill hidden" style="pointer-events:none">
+    <svg id="reticle" viewBox="0 0 32 32" width="30" height="30" fill="none" aria-hidden="true">
+      <circle cx="16" cy="16" r="1.6" fill="currentColor"></circle>
+      <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="16" y1="4" x2="16" y2="11"></line>
+        <line x1="16" y1="21" x2="16" y2="28"></line>
+        <line x1="4" y1="16" x2="11" y2="16"></line>
+        <line x1="21" y1="16" x2="28" y2="16"></line>
+      </g>
+    </svg>
     <div class="hud-top" style="position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:20px 26px;gap:16px">
       <div class="card" style="min-width:132px">
         <div class="lbl">Piso · Floor</div>
@@ -183,6 +194,7 @@ class Game {
       compass:document.getElementById('compass'), battBar:document.getElementById('battBar'),
       stamBar:document.getElementById('stamBar'), ammo:document.getElementById('ammo'),
       mementoCount:document.getElementById('mementoCount'),
+      reticle:document.getElementById('reticle'),
       resistWrap:document.getElementById('resistWrap'), resistBar:document.getElementById('resistBar'),
       resistNarr:document.getElementById('resistNarr'), lifelineDots:document.getElementById('lifelineDots'),
       endTitle:document.getElementById('endTitle'), endSub:document.getElementById('endSub'), endStats:document.getElementById('endStats'),
@@ -202,6 +214,7 @@ class Game {
     E.end.classList.toggle('hidden', s.phase!=='end');
     E.pause.classList.toggle('hidden', !(s.phase==='playing'&&s.paused));
     E.hiddenOverlay.classList.toggle('hidden', !s.hiddenView);
+    E.reticle.style.display = (s.phase==='playing'&&!s.paused&&!s.hiddenView) ? 'block' : 'none';
     E.redveil.style.opacity = Math.min(.62, s.dread/100*.68);
     E.floorText.textContent = String(s.floor).padStart(2,'0');
     E.floorName.textContent = s.floorName||'';
@@ -682,6 +695,7 @@ class Game {
     if(this.scene.fog) this.scene.fog.density=(this._fogBase||.05)+this._dread/100*.03;
     this._updateDust(dt);
     this.renderer.render(this.scene,cam);
+    if(ph==='playing'&&!this.state.paused&&!this.hidden){ const onTgt=this._aimTarget(); this._el.reticle.style.color=this.ammo<=0?'rgba(241,250,238,.42)':(onTgt?'#E63946':'#A8DADC'); this._el.reticle.classList.toggle('armed',!!(onTgt&&this.ammo>0)); }
     this._hudAcc+=dt;
     if(this._hudAcc>=.15&&ph==='playing'){ this._hudAcc=0; const t=Math.max(0,this.timeLeft), mm=String(Math.floor(t/60)).padStart(2,'0'), ss=String(Math.floor(t%60)).padStart(2,'0');
       const roof=this.state.floor>=7;
@@ -835,6 +849,18 @@ class Game {
     this.rescueT=this.diff().rescue;
     this._banner('LLAMADA CONECTADA · AGUANTA HASTA QUE LLEGUEN');
     this._ringSfx();
+  }
+  _aimTarget(){
+    if(!this.entities||!this.entities.length) return null;
+    const T=window.THREE, cam=this.camera, fdir=new T.Vector3(0,0,-1).applyEuler(cam.rotation);
+    let best=null,bs=1e9;
+    for(const e of this.entities){
+      if(e.delay!==undefined&&e.delay>0) continue;
+      const dx=e.pos.x-cam.position.x, dz=e.pos.z-cam.position.z, d=Math.hypot(dx,dz);
+      if(d>13) continue; const dot=(fdir.x*dx+fdir.z*dz)/(d||1);
+      if(dot>.88&&d<bs){ best=e; bs=d; }
+    }
+    return best;
   }
   _shoot(){
     if(this.ammo<=0||!this.entities) return;
