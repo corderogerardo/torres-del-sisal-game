@@ -58,6 +58,12 @@ Hosted on [Cloudflare Pages](https://pages.cloudflare.com/), project `torres-del
 
 Every deployment is content-addressable at `https://<hash>.torres-del-sisal.pages.dev`; the production alias (`torres-del-sisal.pages.dev` and any attached custom domain) always serves the latest.
 
+## Tests & performance
+
+Open the game with **`?test`** (e.g. `torres-del-sisal.noofficelocation.com/?test`) to run the built-in self-test harness: it asserts the core state machine (per-floor structure, phone-only-on-rooftop, mementos, targeting, temptation clamp, ascension, difficulty configs) plus regression guards (no PBR materials, no per-entity lights) and a render micro-benchmark, then shows a pass/fail report.
+
+The renderer is tuned for a wide range of hardware without changing the look: lit surfaces use matte Phong instead of PBR, self-lit shapes use unlit materials, per-frame heap allocation is eliminated, HUD DOM writes are diffed, and an adaptive-resolution scaler *only* lowers pixel density on devices that can't hold ~50fps (capable hardware always renders at full). Measured result: interior render time dropped ~5× (6.3 ms → 1.1 ms/frame at retina resolution).
+
 ---
 
 *Contenido de terror. Usa audífonos.*
