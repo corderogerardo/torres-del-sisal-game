@@ -23,7 +23,7 @@ A first-person horror game set in the cursed *Torres del Sisal*, steeped in the 
 
 ## Tech
 
-`index.html` plus a locally vendored `three.min.js` — no build step, no framework, no bundler, no CDN. Rendering is [Three.js](https://threejs.org/) r128 (MIT, served from the repo so it can't break on a CDN or SRI hiccup); all sound is synthesized live with the Web Audio API. It runs anywhere a modern browser and a keyboard + mouse are available, even offline.
+`index.html` plus a locally vendored `three.min.js` — no build step, framework, or bundler. Core gameplay uses no network and stays playable offline. Optional run records load a pinned Supabase JavaScript client from an ESM CDN only after a player opts in and supplies valid local configuration. Rendering is [Three.js](https://threejs.org/) r128 (MIT, served from the repo so it can't break on a CDN or SRI hiccup); all sound is synthesized live with the Web Audio API.
 
 Originally prototyped in [Claude Design](https://claude.ai/design) (see `project/` for the original handoff bundle) and rebuilt as a standalone game.
 
@@ -32,11 +32,17 @@ Originally prototyped in [Claude Design](https://claude.ai/design) (see `project
 ```
 public/            # everything that gets deployed
   index.html       # the whole game
+  game-rules.mjs   # pure difficulty rules, independent of Three.js and the DOM
+  runtime-metrics.mjs # bounded local frame-time and renderer metrics
+  run-records.mjs  # opt-in, session-only Supabase records adapter
+  supabase-config.example.js # local setup template; real config is ignored
   three.min.js     # vendored Three.js r128 (MIT)
   _headers         # Cloudflare cache rules (no-store on HTML)
 .github/workflows/ # auto-deploy on push to main
 deploy.sh          # one-command manual deploy
+tests/             # Node built-in tests and architecture fitness checks
 project/           # original Claude Design handoff bundle (reference only)
+supabase/migrations/ # local SQL migrations; no remote project is linked
 ```
 
 ## Run locally
@@ -63,6 +69,18 @@ Every deployment is content-addressable at `https://<hash>.torres-del-sisal.page
 Open the game with **`?test`** (e.g. `torres-del-sisal.noofficelocation.com/?test`) to run the built-in self-test harness: it asserts the core state machine (per-floor structure, phone-only-on-rooftop, mementos, targeting, temptation clamp, ascension, difficulty configs) plus regression guards (no PBR materials, no per-entity lights) and a render micro-benchmark, then shows a pass/fail report.
 
 The renderer is tuned for a wide range of hardware without changing the look: lit surfaces use matte Phong instead of PBR, self-lit shapes use unlit materials, per-frame heap allocation is eliminated, HUD DOM writes are diffed, and an adaptive-resolution scaler *only* lowers pixel density on devices that can't hold ~50fps (capable hardware always renders at full). Measured result: interior render time dropped ~5× (6.3 ms → 1.1 ms/frame at retina resolution).
+
+Run the pure rules and architecture checks with Node, without installing dependencies:
+
+```bash
+node --test tests/*.test.mjs
+```
+
+`public/game-rules.mjs` and `public/runtime-metrics.mjs` must remain free of imports and browser, Three.js, network, or storage APIs. The architecture fitness test enforces this boundary.
+
+Append `?metrics` to the game URL to opt into local diagnostics. The console reports frame-time p50/p95/p99 in milliseconds, average FPS, draw calls, and Three.js geometry/texture counts every five seconds. It keeps at most 300 frame intervals in memory; it makes no network requests and stores no data. Treat p95 frame time above 20 ms or average FPS below 50 as a local investigation signal, not a CI failure. Draw-call, geometry, and texture counts are observations rather than universal thresholds because procedural floors have different scene contents. Metrics are omitted unless the query parameter is present.
+
+Optional Supabase run records, their local setup, data model, and provider-log caveats are documented in [`SUPABASE_RUN_RECORDS.md`](SUPABASE_RUN_RECORDS.md).
 
 ---
 
