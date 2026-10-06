@@ -39,6 +39,39 @@ jobs:
           sed -i "s/build v4/build ${SHA}/" public/index.html
           echo "Stamped build ${SHA} (${DATE})"
 
+      # public/supabase-config.js is gitignored, so a fresh checkout never has it
+      # and the run-record integration would ship permanently disabled. The
+      # publishable key is public by design, so it belongs in repository
+      # variables rather than secrets.
+      - name: Materialize Supabase publishable config
+        if: ${{ env.CF_API_TOKEN != '' }}
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::warning title=Run records disabled::SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY repository variables are not set. The leaderboard will ship disabled."
+            exit 0
+          fi
+          cat > public/supabase-config.js <<EOF
+          export default Object.freeze({
+            url: '$SUPABASE_URL',
+            publishableKey: '$SUPABASE_PUBLISHABLE_KEY',
+          });
+          EOF
+          echo "Wrote public/supabase-config.js for $SUPABASE_URL"
+
+      # The client's own key check runs in the browser, long after the bytes are
+      # on the wire. This gate fails the build before a secret can be published.
+      - name: Abort if a Supabase secret key reached the build
+        if: ${{ env.CF_API_TOKEN != '' }}
+        run: |
+          if grep -rE 'sb_secret_|"role"[[:space:]]*:[[:space:]]*"service_role"|SUPABASE_SERVICE_ROLE|SUPABASE_DB_PASSWORD|postgres(ql)?://' public/; then
+            echo "::error::A Supabase secret or database credential is staged for deploy. Aborting without publishing."
+            exit 1
+          fi
+          echo "No Supabase secrets in the build output"
+
       - name: Deploy to Cloudflare Pages
         if: ${{ env.CF_API_TOKEN != '' }}
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0

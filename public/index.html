@@ -37,6 +37,21 @@
   .btn{background:#E63946;color:#F1FAEE;border:none;border-radius:999px;padding:16px 40px;font-family:inherit;font-weight:800;font-size:15px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:background .15s ease,transform .15s ease}
   .btn:hover{background:#c92f3c;transform:translateY(-1px)}
   .btn:focus-visible{outline:3px solid #A8DADC;outline-offset:3px}
+  .support-note{margin-top:18px;padding:14px 16px;text-align:left;background:rgba(29,53,87,.82);border:1px solid rgba(168,218,220,.55);border-left:4px solid #A8DADC;border-radius:10px;color:#F1FAEE;font-size:13px;line-height:1.65}
+  .support-note:focus-visible{outline:3px solid #A8DADC;outline-offset:4px}
+  .support-note h2{font-size:13px;letter-spacing:.7px;color:#A8DADC}
+  .support-note p+p{margin-top:8px}
+  .records-panel{margin-top:18px;padding:14px 16px;text-align:left;background:rgba(5,7,10,.82);border:1px solid rgba(168,218,220,.36);border-radius:10px;color:#F1FAEE;font-size:12px;line-height:1.55}
+  .records-panel h2,.records-panel h3{color:#A8DADC;font-size:12px;letter-spacing:.8px;text-transform:uppercase}
+  .records-choice{display:flex;align-items:flex-start;gap:9px;margin-top:10px;cursor:pointer}
+  .records-choice input{flex:0 0 auto;width:17px;height:17px;margin-top:1px;accent-color:#A8DADC}
+  .records-alias{display:grid;gap:5px;margin:10px 0 0 26px}
+  .records-alias input{padding:8px 10px;border:1px solid rgba(168,218,220,.6);border-radius:6px;background:#05070a;color:#F1FAEE;font:inherit;user-select:text;-webkit-user-select:text}
+  .records-status{min-height:1.5em;margin-top:10px;color:#A8DADC}
+  .records-list{padding-left:22px;margin-top:6px}
+  .records-list li+li{margin-top:4px}
+  .records-delete{padding:8px 14px;margin-top:10px;font-size:11px;letter-spacing:.8px}
+  .records-panel :focus-visible{outline:2px solid #A8DADC;outline-offset:3px}
   .display{font-family:'Cinzel',serif}
   .diffbtn{background:rgba(241,250,238,.06);color:rgba(241,250,238,.7);border:2px solid rgba(241,250,238,.16);border-radius:999px;padding:9px 18px;font-family:inherit;font-weight:800;font-size:12px;letter-spacing:1px;cursor:pointer;transition:.15s}
   .diffbtn.on{background:#1D3557;color:#F1FAEE;border-color:#A8DADC}
@@ -135,13 +150,46 @@
   </div>
 
   <!-- ============ Intro ============ -->
-  <div id="intro" class="fill" style="display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:auto;background:linear-gradient(rgba(5,7,10,.7),rgba(5,7,10,.9))">
+  <div id="intro" class="fill" style="display:flex;align-items:safe center;justify-content:center;overflow-y:auto;padding:24px;pointer-events:auto;background:linear-gradient(rgba(5,7,10,.7),rgba(5,7,10,.9))">
     <div style="max-width:580px;width:100%;text-align:center;animation:creep .6s ease both">
       <div style="display:inline-flex;align-items:center;gap:8px;background:#E63946;color:#F1FAEE;border-radius:999px;padding:6px 14px;font-weight:800;font-size:11px;letter-spacing:2px">MALDITAS · CURSED</div>
       <h1 class="display" style="margin-top:20px;font-weight:900;font-size:56px;line-height:.95;letter-spacing:1px">TORRES<br>DEL SISAL</h1>
       <div style="margin-top:12px;font-weight:800;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#E63946">El trampolín de la muerte</div>
       <p style="margin-top:22px;font-weight:400;font-size:15px;line-height:1.7;color:rgba(241,250,238,.82)">Entraste a las Torres del Sisal ya poseído. La ley de las torres es una sola: <strong style="color:#F1FAEE">siempre hacia arriba</strong>. Cada fantasma que te atrapa — o la posesión que se completa — te despierta un piso más alto. En cada piso hay un <strong style="color:#A8DADC">recuerdo</strong> de quién eras: una foto, un dibujo, una voz. Recógelos. Al final te espera la <strong style="color:#F1FAEE">azotea</strong> — y ahí está el teléfono. Haz la llamada, y luego <strong style="color:#E63946">resiste la tentación de saltar</strong> hasta que llegue el rescate. Los recuerdos son lo único que te sostiene en el borde.</p>
       <p style="margin-top:12px;font-weight:600;font-size:12px;line-height:1.6;color:rgba(241,250,238,.5)">Adentro esperan los espantos del llano — La Sayona, La Llorona, El Silbón, los duendes, la Bola de Fuego. El agua bendita los disuelve; el amuleto purga la posesión; la linterna congela a las sombras.</p>
+      <section id="supportNote" class="support-note" role="note" aria-labelledby="supportNoteTitle" tabindex="0">
+        <h2 id="supportNoteTitle">Aviso de contenido y apoyo</h2>
+        <p>Este juego contiene terror, posesión y referencias al suicidio. Si estos temas te afectan, puedes detenerte o salir cuando quieras.</p>
+        <p>Si estás pasando por un momento difícil, hablar con alguien de confianza puede ser un primer paso. Este juego no sustituye el apoyo profesional.</p>
+        <p>Si tú o alguien cercano está en peligro inmediato, busca a una persona de confianza, acude al centro de salud más cercano o contacta con el servicio de emergencias local.</p>
+      </section>
+      <section id="runRecordsPanel" class="records-panel" aria-labelledby="runRecordsTitle">
+        <h2 id="runRecordsTitle">Registros comunitarios (opcional)</h2>
+        <p>Ambas opciones están apagadas por defecto y el juego funciona sin conexión. Las tablas del juego no guardan direcciones IP, correo, dispositivo ni historias de acciones.</p>
+        <p>Supabase puede procesar la dirección IP y el agente de usuario para autenticación y registros de plataforma. La retención depende de la configuración y el plan del proyecto.</p>
+        <p>Puedes borrar tus registros de juego antes de cerrar esta sesión. Como los tokens no se conservan, después no podrás recuperar ese historial. Las cifras describen sesiones anónimas, no personas, y los resultados se declaran desde el cliente: no se verifican contra trampas.</p>
+        <label class="records-choice" for="statsOptIn">
+          <input type="checkbox" id="statsOptIn">
+          <span>Compartir estadísticas anónimas: partidas iniciadas, rescatadas, saltadas y sin cierre. No publica tu alias.</span>
+        </label>
+        <label class="records-choice" for="rescueOptIn">
+          <input type="checkbox" id="rescueOptIn">
+          <span>Publicar un alias y solo tus rescates, con dificultad, duración y recuerdos reunidos.</span>
+        </label>
+        <div id="aliasField" class="records-alias" hidden>
+          <label for="displayAlias">Alias público</label>
+          <input type="text" id="displayAlias" maxlength="24" pattern="[A-Za-z0-9 _-]{1,24}" autocomplete="nickname" aria-describedby="aliasRules">
+          <span id="aliasRules">Hasta 24 caracteres: letras sin acento, números, espacios, guion o guion bajo.</span>
+        </div>
+        <p id="runRecordsStatus" class="records-status" role="status" aria-live="polite" aria-atomic="true">Los registros están desactivados.</p>
+        <div id="runRecordsData" hidden>
+          <h3>Actividad reportada</h3>
+          <p id="runAnalyticsSummary" aria-live="polite"></p>
+          <h3 style="margin-top:10px">Mejores rescates · no verificados</h3>
+          <ol id="publicRunResults" class="records-list" aria-live="polite"></ol>
+        </div>
+        <button id="deleteRunRecords" class="btn records-delete" type="button" hidden>Eliminar mis registros de esta sesión</button>
+      </section>
       <div style="margin-top:22px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap">
         <span class="lbl" style="width:100%;margin-bottom:2px">Dificultad</span>
         <button class="diffbtn on" data-diff="Piadoso">Piadoso</button>
@@ -159,11 +207,16 @@
       <h1 id="endTitle" class="display" style="font-weight:900;font-size:44px;line-height:1.04;letter-spacing:.5px"></h1>
       <p id="endSub" style="margin-top:18px;font-weight:400;font-size:16px;line-height:1.7;color:rgba(241,250,238,.82)"></p>
       <div id="endStats" style="margin-top:16px;font-weight:700;font-size:13px;color:rgba(241,250,238,.5);letter-spacing:.5px"></div>
+      <p id="endRunRecordStatus" role="status" aria-live="polite" aria-atomic="true" style="margin-top:10px;min-height:1.5em;color:#A8DADC;font-size:12px"></p>
+      <button id="deleteRunRecordsEnd" class="btn records-delete" type="button" hidden>Eliminar mis registros de esta sesión</button>
       <button id="restartBtn" class="btn" style="margin-top:26px">Volver a entrar ▸</button>
     </div>
   </div>
 
-<script data-cfasync="false">
+<script type="module" data-cfasync="false">
+import { getDifficultyConfig } from './game-rules.mjs';
+import { RuntimeMetrics } from './runtime-metrics.mjs';
+import { createOptionalRunClient, createRunSession, isValidDisplayAlias } from './run-records.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
@@ -189,6 +242,9 @@ class Game {
     this.ammo = 0; this.rescueT = -1; this.phoneUsed = false; this.pistolTaken = false; this.callMade = false;
     this.hidden = null;
     this.mementos = 0; this.collected = []; this.temptation = 0; this.lifelines = 0; this._narrT = 0;
+    this._runRecords = createOptionalRunClient();
+    this._runConsent = { statsOptIn:false, rescueOptIn:false };
+    this._runSession = null;
     this.state = { phase:'intro', floor:1, timeText:'05:00', timerColor:'#F1FAEE', dread:0, objective:'', banner:'', paused:false, ending:null, batt:100, stam:100, compassRot:0, ammo:0, hiddenView:false, floorName:'', temptation:0, showResist:false };
     this._el = {
       hud:document.getElementById('hud'), intro:document.getElementById('intro'), end:document.getElementById('end'),
@@ -263,6 +319,107 @@ class Game {
     document.addEventListener('visibilitychange',()=>{ const c=this._audioCtx; if(!c) return; if(document.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } });
     window.addEventListener('resize',()=>this._onResize());
     this.stage.addEventListener('click',()=>{ if(this.state.phase!=='playing') return; if(this.state.paused){ this._lock(); return; } this._shoot(); });
+    document.getElementById('statsOptIn').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
+    document.getElementById('rescueOptIn').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
+    document.getElementById('displayAlias').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
+    document.getElementById('deleteRunRecords').addEventListener('click',()=>{ void this._deleteRunRecords(); });
+    document.getElementById('deleteRunRecordsEnd').addEventListener('click',()=>{ void this._deleteRunRecords(); });
+  }
+
+  _setRunRecordsStatus(message){ document.getElementById('runRecordsStatus').textContent=message; }
+
+  _clearRunRecords(){
+    document.getElementById('runRecordsData').hidden=true;
+    document.getElementById('runAnalyticsSummary').textContent='';
+    document.getElementById('publicRunResults').replaceChildren();
+  }
+
+  async _updateRunRecordsPreferences(){
+    const statsOptIn=document.getElementById('statsOptIn').checked;
+    const publishRequested=document.getElementById('rescueOptIn').checked;
+    const alias=document.getElementById('displayAlias').value.trim();
+    const aliasValid=isValidDisplayAlias(alias);
+    const rescueOptIn=publishRequested&&aliasValid;
+    const consent={statsOptIn,rescueOptIn};
+    this._runConsent=consent;
+    document.getElementById('aliasField').hidden=!publishRequested;
+    document.getElementById('deleteRunRecords').hidden=true;
+    document.getElementById('deleteRunRecordsEnd').hidden=true;
+
+    if(!statsOptIn&&!rescueOptIn){
+      await this._runRecords.savePreferences(consent);
+      this._clearRunRecords();
+      this._setRunRecordsStatus(publishRequested?'Escribe un alias válido para publicar rescates.':'Los registros están desactivados.');
+      return;
+    }
+
+    if(!await this._runRecords.savePreferences(consent)){
+      this._setRunRecordsStatus('No se pudo guardar la preferencia. El juego sigue disponible sin conexión.');
+      return;
+    }
+    document.getElementById('deleteRunRecords').hidden=false;
+    document.getElementById('deleteRunRecordsEnd').hidden=false;
+
+    const data=await this._runRecords.loadPublicData(consent);
+    this._renderRunRecords(data);
+    this._setRunRecordsStatus(data?.unavailable
+      ?'No se pudieron cargar algunos registros. El juego sigue disponible.'
+      :publishRequested&&!aliasValid
+        ?'Estadísticas activas. Escribe un alias válido para publicar rescates.'
+        :'Registros actualizados. Los rescates del marcador no están verificados.');
+  }
+
+  _renderRunRecords(data){
+    const panel=document.getElementById('runRecordsData');
+    const summary=document.getElementById('runAnalyticsSummary');
+    const list=document.getElementById('publicRunResults');
+    list.replaceChildren();
+    if(!data){ panel.hidden=true; summary.textContent=''; return; }
+    panel.hidden=false;
+
+    const counts=data.analytics;
+    summary.textContent=counts
+      ? `Inicios: ${counts.started} · En curso o sin cierre: ${counts.inProgress} · Rescatados: ${counts.rescued} · Saltos: ${counts.jumped} · Sesiones anónimas: ${counts.anonymousSessions}`
+      :'Las estadísticas no están activadas para esta sesión.';
+
+    for(const difficulty of ['Piadoso','Normal','Pesadilla']){
+      const entries=data.rescues.filter(entry=>entry.difficulty===difficulty);
+      if(!entries.length){
+        const empty=document.createElement('li');
+        empty.textContent=`${difficulty}: todavía no hay rescates publicados.`;
+        list.appendChild(empty);
+        continue;
+      }
+      for(const entry of entries){
+        const item=document.createElement('li');
+        item.textContent=`${difficulty} · ${entry.displayAlias} · ${this._formatRunDuration(entry.durationMs)} · ${entry.mementos}/6 recuerdos`;
+        list.appendChild(item);
+      }
+    }
+  }
+
+  _formatRunDuration(durationMs){
+    const totalSeconds=durationMs/1000, minutes=Math.floor(totalSeconds/60), seconds=(totalSeconds%60).toFixed(1).padStart(4,'0');
+    return `${minutes}:${seconds}`;
+  }
+
+  async _deleteRunRecords(){
+    if(!window.confirm('¿Eliminar tus partidas privadas y rescates publicados de esta sesión? No podrás recuperar este historial después de cerrar la página.')) return;
+    this._setRunRecordsStatus('Eliminando tus registros…');
+    if(!await this._runRecords.deleteMyRunData()){
+      this._setRunRecordsStatus('No se pudieron eliminar los registros. El juego sigue disponible.');
+      return;
+    }
+    document.getElementById('statsOptIn').checked=false;
+    document.getElementById('rescueOptIn').checked=false;
+    document.getElementById('displayAlias').value='';
+    document.getElementById('aliasField').hidden=true;
+    document.getElementById('deleteRunRecords').hidden=true;
+    document.getElementById('deleteRunRecordsEnd').hidden=true;
+    this._runConsent={statsOptIn:false,rescueOptIn:false};
+    this._runSession=null;
+    this._clearRunRecords();
+    this._setRunRecordsStatus('Se eliminaron tus registros de esta sesión.');
   }
 
   _waitThree(n){ if(window.THREE){ this._initThree(); return; } if(n>160) return; setTimeout(()=>this._waitThree(n+1),50); }
@@ -347,6 +504,8 @@ class Game {
     this._prCap = coarse ? 1.5 : 2;          // touch devices render fewer pixels
     this._renderScale = 1;                    // adaptive-quality multiplier (drops only if the device can't keep up)
     this._fpsT = 0; this._fpsN = 0;
+    this._metrics = typeof URLSearchParams!=='undefined' && new URLSearchParams(location.search).has('metrics') ? new RuntimeMetrics(300) : null;
+    this._metricsLastFrameTime = 0; this._metricsLastReport = performance.now();
     this._fwd = new T.Vector3();               // reused each frame instead of allocating
     this._spectral = { time:{ value:0 } };      // one shared uniform driving all GPU sway/flicker
     renderer.setPixelRatio(Math.min(devicePixelRatio,this._prCap)); renderer.setSize(w,h);
@@ -369,8 +528,7 @@ class Game {
 
   diff(){
     const d=this.props.difficulty||'Normal';
-    const m={ 'Piadoso':{time:300,pull:.75,near:5.5,spike:20,rescue:40,creep:.32}, 'Normal':{time:180,pull:1,near:8,spike:30,rescue:50,creep:.5}, 'Pesadilla':{time:150,pull:1.5,near:11,spike:42,rescue:65,creep:.7} };
-    return m[d]||m['Normal'];
+    return getDifficultyConfig(d);
   }
 
   _spawnEntities(n,rng){
@@ -813,6 +971,11 @@ class Game {
   _frame(){
     if(!this.renderer) return;
     const T=window.THREE, dt=Math.min(this.clock.getDelta(),.05), now=performance.now(), cam=this.camera, ph=this.state.phase;
+    if(this._metrics){
+      if(this._metricsLastFrameTime) this._metrics.record(now-this._metricsLastFrameTime,this.renderer.info);
+      this._metricsLastFrameTime=now;
+      if(now-this._metricsLastReport>=5000){ console.info('[TDS metrics]',JSON.stringify(this._metrics.snapshot())); this._metricsLastReport=now; }
+    }
     if(ph==='playing'&&!this.state.paused&&this._fallbackLook&&!document.pointerLockElement&&this._cursor){
       const el=this.stage, vw=el.clientWidth||innerWidth, vh=el.clientHeight||innerHeight;
       const nx=(this._cursor.x/vw-.5)*2, ny=(this._cursor.y/vh-.5)*2;
@@ -1063,6 +1226,7 @@ class Game {
   jumpEnding(){
     if(this.state.phase!=='playing') return;
     this._despair(); if(document.pointerLockElement) document.exitPointerLock();
+    this._recordTerminalRun('jumped');
     const sub=this.callMade
       ? 'Diste el paso. El rescate llegó a la azotea justo a tiempo para ver caer un cuerpo más. Las Torres del Sisal cobraron lo suyo.'
       : 'Nunca hiciste la llamada. Nadie supo que estabas dentro. La azotea te tragó como a todos los demás.';
@@ -1070,9 +1234,21 @@ class Game {
   }
   rescuedEnding(){
     this._release(); if(document.pointerLockElement) document.exitPointerLock();
+    this._recordTerminalRun('rescued');
     this.setState({phase:'end',paused:false,ending:{bad:false,title:'RESCATADO',
       sub:'Te arrancaron del borde con la posesión aún gritando dentro. Bajaste con vida — el primero en años. Los recuerdos que juntaste fueron lo único que te mantuvo de este lado del borde.',
-      stats:this._statLine()}});
+       stats:this._statLine()}});
+  }
+  _recordTerminalRun(outcome){
+    if(!this._runSession) return;
+    const summary=this._runSession.finish({outcome,floorReached:this.state.floor,mementos:this.mementos});
+    if(!summary) return;
+    if(this._runConsent.rescueOptIn) summary.displayAlias=document.getElementById('displayAlias').value.trim();
+    void this._runRecords.finishRun(summary,{consent:this._runConsent}).then(saved=>{
+      document.getElementById('endRunRecordStatus').textContent=saved
+        ?'El registro se guardó según tus opciones.'
+        :'No se pudo guardar el registro. El juego terminó con normalidad.';
+    });
   }
   _statLine(){ const names=this.collected.map(i=>MEMENTOS[i].name).join(' · '); return this.mementos?('Recuerdos rescatados ('+this.mementos+'/6): '+names):'No rescataste ningún recuerdo.'; }
 
@@ -1153,6 +1329,12 @@ class Game {
     this._dread=0; this._ascending=false; this.torchOn=true; this.torchBattery=100; this._stam=100;
     this.ammo=0; this.rescueT=-1; this.phoneUsed=false; this.pistolTaken=false; this.callMade=false; this.hidden=null;
     this.mementos=0; this.collected=[]; this.temptation=0; this.lifelines=0; this.mementoCollected=false;
+    this._runSession=null;
+    if(this._runConsent.statsOptIn||this._runConsent.rescueOptIn){
+      this._runSession=createRunSession();
+      const started=this._runSession.start(this.props.difficulty);
+      if(started) void this._runRecords.startRun({...started,consent:this._runConsent});
+    }
     this._el.resistNarr.textContent='';
     this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
     this._startAudio(); this.buildFloor(1); this._lock();

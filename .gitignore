@@ -15,3 +15,6 @@ node_modules/
 
 # Local Cloudflare Pages deploy staging
 .cfdist/
+
+# Local Supabase project URL and public key configuration
+/public/supabase-config.js
