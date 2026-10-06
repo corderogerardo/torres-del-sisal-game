@@ -1,0 +1,9 @@
+-- Intentionally empty.
+--
+-- config.toml sets db.seed.sql_paths = ["./seed.sql"], so this file must exist
+-- for `supabase db reset` to complete. The run-record schema is created entirely
+-- by supabase/migrations/202609230001_public_run_records.sql and needs no seed
+-- rows.
+--
+-- Add local-only fixtures below this line. Do not add production or personal
+-- data here: `db reset` runs this against a developer's local database.
