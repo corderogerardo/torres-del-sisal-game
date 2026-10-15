@@ -371,6 +371,9 @@ class Game {
     document.getElementById('deleteRunRecords').hidden=false;
     document.getElementById('deleteRunRecordsEnd').hidden=false;
 
+    this._setRunRecordsStatus('Despertando la base de datos…');
+    await this._runRecords.wakeUp(consent);
+
     const data=await this._runRecords.loadPublicData(consent);
     this._renderRunRecords(data);
     this._setRunRecordsStatus(data?.unavailable

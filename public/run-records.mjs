@@ -133,6 +133,28 @@ async function loadSupabaseSdk() {
   return import(SUPABASE_SDK_URL);
 }
 
+const defaultSleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+async function findRunId(client, clientRunId) {
+  try {
+    const { data, error } = await client.from('run_records').select('id').eq('client_run_id', clientRunId).maybeSingle();
+    if (error) return null;
+    return data?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function findPublicEntryId(client, recordId) {
+  try {
+    const { data, error } = await client.from('public_rescue_entries').select('id').eq('run_record_id', recordId).maybeSingle();
+    if (error) return null;
+    return data?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function createOptionalRunClient({ loadConfig = loadLocalConfig, loadSdk = loadSupabaseSdk } = {}) {
   let sessionPromise = null;
   const startRequests = new Map();
@@ -168,6 +190,23 @@ export function createOptionalRunClient({ loadConfig = loadLocalConfig, loadSdk 
 
   async function connect(consent = {}) {
     return Boolean(await getSession(consent));
+  }
+
+  async function wakeUp(consent = {}, { attempts = 5, baseDelayMs = 1500, sleep = defaultSleep } = {}) {
+    if (consent.statsOptIn !== true && consent.rescueOptIn !== true) return false;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const session = await getSession(consent);
+        if (session) {
+          const { error } = await session.client.rpc('get_public_rescues');
+          if (!error) return true;
+        }
+      } catch {
+        // Fall through to the bounded retry below.
+      }
+      if (attempt + 1 < attempts) await sleep(baseDelayMs * 2 ** attempt);
+    }
+    return false;
   }
 
   async function savePreferences(consent = {}) {
@@ -216,63 +255,75 @@ export function createOptionalRunClient({ loadConfig = loadLocalConfig, loadSdk 
     return request;
   }
 
-  async function submitTerminalRun(summary, consent, runId) {
-    try {
-      const pendingStart = startRequests.get(summary.clientRunId);
-      const savedRunId = runId || (pendingStart ? await pendingStart : null);
-      const session = await getSession(consent);
-      if (!session) return false;
-      if (!savedRunId && !await savePreferences(consent)) return false;
+  async function submitTerminalRun(summary, consent, runId, { attempts = 3, baseDelayMs = 1500, sleep = defaultSleep } = {}) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const backoff = async () => { if (attempt + 1 < attempts) await sleep(baseDelayMs * 2 ** attempt); };
+      try {
+        const pendingStart = startRequests.get(summary.clientRunId);
+        const savedRunId = runId || (pendingStart ? await pendingStart : null);
+        const session = await getSession(consent);
+        if (!session) { await backoff(); continue; }
+        if (!savedRunId && !await savePreferences(consent)) { await backoff(); continue; }
 
-      const terminalRecord = {
-        outcome: summary.outcome,
-        duration_ms: summary.durationMs,
-        floor_reached: summary.floorReached,
-        mementos: summary.mementos,
-      };
-      let recordId = savedRunId;
-
-      if (recordId) {
-        const { error } = await session.client.from('run_records')
-          .update(terminalRecord)
-          .eq('id', recordId);
-        if (error) return false;
-      } else {
-        const { data, error } = await session.client.from('run_records').insert({
-          user_id: session.userId,
-          client_run_id: summary.clientRunId,
-          difficulty: summary.difficulty,
-          ...terminalRecord,
-        }).select('id').single();
-        if (error || !data?.id) return false;
-        recordId = data.id;
-      }
-
-      const displayAlias = getPublicAlias(summary.displayAlias);
-      if (summary.outcome === 'rescued' && consent.rescueOptIn === true && displayAlias) {
-        const { error } = await session.client.from('public_rescue_entries').insert({
-          run_record_id: recordId,
-          owner_id: session.userId,
-          display_alias: displayAlias,
-          difficulty: summary.difficulty,
+        const terminalRecord = {
+          outcome: summary.outcome,
           duration_ms: summary.durationMs,
+          floor_reached: summary.floorReached,
           mementos: summary.mementos,
-        });
-        if (error) return false;
+        };
+        let recordId = savedRunId || await findRunId(session.client, summary.clientRunId);
+
+        if (recordId) {
+          const { error } = await session.client.from('run_records')
+            .update(terminalRecord)
+            .eq('id', recordId);
+          if (error) { await backoff(); continue; }
+        } else {
+          const inserted = await session.client.from('run_records').insert({
+            user_id: session.userId,
+            client_run_id: summary.clientRunId,
+            difficulty: summary.difficulty,
+            ...terminalRecord,
+          }).select('id').single();
+          if (inserted.error || !inserted.data?.id) {
+            if (inserted.error?.code === '23505') {
+              recordId = await findRunId(session.client, summary.clientRunId);
+              if (recordId) continue;
+            }
+            await backoff(); continue;
+          }
+          recordId = inserted.data.id;
+        }
+
+        const displayAlias = getPublicAlias(summary.displayAlias);
+        if (summary.outcome === 'rescued' && consent.rescueOptIn === true && displayAlias) {
+          if (!await findPublicEntryId(session.client, recordId)) {
+            const { error } = await session.client.from('public_rescue_entries').insert({
+              run_record_id: recordId,
+              owner_id: session.userId,
+              display_alias: displayAlias,
+              difficulty: summary.difficulty,
+              duration_ms: summary.durationMs,
+              mementos: summary.mementos,
+            });
+            if (error && error.code !== '23505') { await backoff(); continue; }
+          }
+        }
+        return true;
+      } catch {
+        await backoff();
       }
-      return true;
-    } catch {
-      return false;
     }
+    return false;
   }
 
-  function finishRun(summary, { consent = {}, runId = null } = {}) {
+  function finishRun(summary, { consent = {}, runId = null, attempts, baseDelayMs, sleep } = {}) {
     if (!isValidRunSummary(summary)) return Promise.resolve(false);
     if (consent.statsOptIn !== true && consent.rescueOptIn !== true) return Promise.resolve(false);
     if (submittedRunIds.has(summary.clientRunId)) return Promise.resolve(false);
     submittedRunIds.add(summary.clientRunId);
 
-    const request = submitTerminalRun(summary, consent, runId);
+    const request = submitTerminalRun(summary, consent, runId, { attempts, baseDelayMs, sleep });
     terminalRequests.set(summary.clientRunId, request);
     return request.then((result) => {
       if (terminalRequests.get(summary.clientRunId) === request) terminalRequests.delete(summary.clientRunId);
@@ -327,5 +378,5 @@ export function createOptionalRunClient({ loadConfig = loadLocalConfig, loadSdk 
     return deletionPromise;
   }
 
-  return { connect, savePreferences, startRun, finishRun, loadPublicData, deleteMyRunData };
+  return { connect, wakeUp, savePreferences, startRun, finishRun, loadPublicData, deleteMyRunData };
 }

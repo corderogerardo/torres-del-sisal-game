@@ -255,7 +255,7 @@ test('failed public publishing is reported as a non-throwing submission failure'
     clientRunId: 'c6b7d9c0-f04c-4e65-8d86-14119608d2f1',
     difficulty: 'Normal', outcome: 'rescued', durationMs: 183456,
     floorReached: 7, mementos: 4, displayAlias: 'Sisal 7',
-  }, { consent: { rescueOptIn: true }, runId: 'private-run-row' });
+  }, { consent: { rescueOptIn: true }, runId: 'private-run-row', sleep: async () => {} });
 
   assert.equal(result, false);
 });
@@ -368,4 +368,155 @@ test('local provider config is ignored and no token storage is used', async () =
   assert.match(gitignore, /public\/supabase-config\.js/);
   assert.doesNotMatch(source, /\b(?:localStorage|sessionStorage)\b/);
   assert.match(source, /@supabase\/supabase-js@2\.\d+\.\d+/);
+});
+
+test('wake-up contacts nothing without opt-in', async () => {
+  let configLoads = 0;
+  let rpcCalls = 0;
+  const integration = runRecords?.createOptionalRunClient({
+    loadConfig: async () => { configLoads += 1; return null; },
+    loadSdk: async () => ({ createClient: () => ({
+      auth: { signInAnonymously: async () => ({ data: { user: { id: 'x' } }, error: null }) },
+      rpc: async () => { rpcCalls += 1; return { data: [], error: null }; },
+    }) }),
+  });
+
+  assert.equal(typeof integration?.wakeUp, 'function', 'client must expose an opt-in wake-up');
+  assert.equal(await integration.wakeUp({ statsOptIn: false, rescueOptIn: false }), false);
+  assert.deepEqual({ configLoads, rpcCalls }, { configLoads: 0, rpcCalls: 0 });
+});
+
+test('wake-up retries a sleeping backend with backoff and writes nothing', async () => {
+  const rpcCalls = [];
+  const delays = [];
+  const writes = [];
+  let rpcAttempts = 0;
+  const client = {
+    auth: { signInAnonymously: async () => ({ data: { user: { id: 'session-owner' } }, error: null }) },
+    from: () => { throw new Error('wake-up must not write'); },
+    rpc: async (name) => {
+      rpcCalls.push(name);
+      rpcAttempts += 1;
+      if (rpcAttempts < 3) return { data: null, error: new Error('paused') };
+      return { data: [], error: null };
+    },
+  };
+  const integration = runRecords?.createOptionalRunClient({
+    loadConfig: async () => ({ url: 'https://demo.supabase.co', publishableKey: 'sb_publishable_public' }),
+    loadSdk: async () => ({ createClient: () => client }),
+  });
+
+  const ok = await integration.wakeUp({ statsOptIn: true }, {
+    attempts: 3,
+    baseDelayMs: 1000,
+    sleep: async (ms) => { delays.push(ms); },
+  });
+
+  assert.equal(ok, true);
+  assert.deepEqual(rpcCalls, ['get_public_rescues', 'get_public_rescues', 'get_public_rescues']);
+  assert.deepEqual(delays, [1000, 2000]);
+  assert.deepEqual(writes, []);
+});
+
+test('terminal submission retries a cold failure then succeeds', async () => {
+  let updateCalls = 0;
+  const delays = [];
+  const client = {
+    auth: { signInAnonymously: async () => ({ data: { user: { id: 'session-owner' } }, error: null }) },
+    from: () => ({
+      update: () => ({ eq: () => ({ then: (resolve, reject) => {
+        updateCalls += 1;
+        return Promise.resolve({ error: updateCalls === 1 ? new Error('cold') : null }).then(resolve, reject);
+      } }) }),
+    }),
+  };
+  const integration = runRecords?.createOptionalRunClient({
+    loadConfig: async () => ({ url: 'https://demo.supabase.co', publishableKey: 'sb_publishable_public' }),
+    loadSdk: async () => ({ createClient: () => client }),
+  });
+
+  const result = await integration.finishRun({
+    clientRunId: 'c6b7d9c0-f04c-4e65-8d86-14119608d2f1',
+    difficulty: 'Normal', outcome: 'jumped', durationMs: 183456,
+    floorReached: 7, mementos: 4,
+  }, { consent: { statsOptIn: true }, runId: 'private-run-row', sleep: async (ms) => { delays.push(ms); } });
+
+  assert.equal(result, true);
+  assert.equal(updateCalls, 2);
+  assert.deepEqual(delays, [1500]);
+});
+
+test('terminal retry reuses the stored row after a unique conflict instead of duplicating', async () => {
+  const operations = [];
+  const client = {
+    auth: { signInAnonymously: async () => ({ data: { user: { id: 'session-owner' } }, error: null }) },
+    from: () => ({
+      upsert: async () => ({ error: null }),
+      select: () => ({ eq: () => ({ maybeSingle: async () => {
+        operations.push('lookup');
+        return operations.filter((operation) => operation === 'lookup').length === 1
+          ? { data: null, error: null }
+          : { data: { id: 'recovered-row' }, error: null };
+      } }) }),
+      insert: () => {
+        operations.push('insert');
+        return { select: () => ({ single: async () => {
+          const conflict = new Error('duplicate');
+          conflict.code = '23505';
+          return { data: null, error: conflict };
+        } }) };
+      },
+      update: () => {
+        operations.push('update');
+        return { eq: () => ({ then: (resolve, reject) => Promise.resolve({ error: null }).then(resolve, reject) }) };
+      },
+    }),
+  };
+  const integration = runRecords?.createOptionalRunClient({
+    loadConfig: async () => ({ url: 'https://demo.supabase.co', publishableKey: 'sb_publishable_public' }),
+    loadSdk: async () => ({ createClient: () => client }),
+  });
+
+  const result = await integration.finishRun({
+    clientRunId: 'c6b7d9c0-f04c-4e65-8d86-14119608d2f1',
+    difficulty: 'Normal', outcome: 'jumped', durationMs: 183456,
+    floorReached: 7, mementos: 4,
+  }, { consent: { statsOptIn: true }, sleep: async () => {} });
+
+  assert.equal(result, true);
+  assert.deepEqual(operations, ['lookup', 'insert', 'lookup', 'lookup', 'update']);
+});
+
+test('terminal retry treats an existing public entry as success', async () => {
+  const operations = [];
+  const client = {
+    auth: { signInAnonymously: async () => ({ data: { user: { id: 'session-owner' } }, error: null }) },
+    from: (table) => table === 'public_rescue_entries'
+      ? {
+        select: () => ({ eq: () => ({ maybeSingle: async () => {
+          operations.push('public-lookup');
+          return { data: { id: 'existing-entry' }, error: null };
+        } }) }),
+        insert: () => { operations.push('public-insert'); throw new Error('must not insert twice'); },
+      }
+      : {
+        update: () => {
+          operations.push('update');
+          return { eq: () => ({ then: (resolve, reject) => Promise.resolve({ error: null }).then(resolve, reject) }) };
+        },
+      },
+  };
+  const integration = runRecords?.createOptionalRunClient({
+    loadConfig: async () => ({ url: 'https://demo.supabase.co', publishableKey: 'sb_publishable_public' }),
+    loadSdk: async () => ({ createClient: () => client }),
+  });
+
+  const result = await integration.finishRun({
+    clientRunId: 'c6b7d9c0-f04c-4e65-8d86-14119608d2f1',
+    difficulty: 'Normal', outcome: 'rescued', durationMs: 183456,
+    floorReached: 7, mementos: 4, displayAlias: 'Sisal 7',
+  }, { consent: { rescueOptIn: true }, runId: 'private-run-row', sleep: async () => {} });
+
+  assert.equal(result, true);
+  assert.deepEqual(operations, ['update', 'public-lookup']);
 });
