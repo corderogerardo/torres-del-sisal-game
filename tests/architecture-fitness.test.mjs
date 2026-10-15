@@ -68,3 +68,11 @@ test('runtime metrics ignore invalid frame durations', () => {
     textures: 1,
   });
 });
+
+test('audio seam is wired behind play(kind)', () => {
+  assert.match(pageSource, /from '\.\/audio\.mjs'/);
+  assert.match(pageSource, /AUDIO_KINDS/);
+  assert.match(pageSource, /play\(kind/);
+  assert.match(pageSource, /this\.play\('chime'\)/);
+  assert.match(pageSource, /this\.play\('vanish'\)/);
+});

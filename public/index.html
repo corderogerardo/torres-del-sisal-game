@@ -222,6 +222,7 @@
 import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createOptionalRunClient, createRunSession, isValidDisplayAlias } from './run-records.mjs';
+import { AUDIO_KINDS } from './audio.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
@@ -699,7 +700,7 @@ class Game {
       e.grace=Math.max(0,e.grace-dt);
       if(e.delay!==undefined&&e.delay>0){ e.delay-=dt; continue; }
       if(!e.group.visible) e.group.visible=true;
-      if(e.type==='sayona'&&!e.announced){ e.announced=true; this._screamSfx(); this._banner('LA SAYONA TE HA VISTO'); this._dread=Math.min(100,this._dread+8); }
+      if(e.type==='sayona'&&!e.announced){ e.announced=true; this.play('scream'); this._banner('LA SAYONA TE HA VISTO'); this._dread=Math.min(100,this._dread+8); }
       if(dist<this._nearest) this._nearest=dist;
       const toEx=(e.pos.x-cam.position.x)/(dist||1), toEz=(e.pos.z-cam.position.z)/(dist||1);
       const lit=torch&&dist<15&&(fdir.x*toEx+fdir.z*toEz)>.86;
@@ -712,23 +713,23 @@ class Game {
         else seekLost(e.speed.hunt*.75);
         if(lit) spd=0;
       } else if(e.type==='sayona'){
-        if(e.calm&&dist<7&&canSee){ e.calm=false; this._screamSfx(); this._banner('LA SAYONA MUESTRA SU VERDADERO ROSTRO'); this._dread=Math.min(100,this._dread+10); }
+        if(e.calm&&dist<7&&canSee){ e.calm=false; this.play('scream'); this._banner('LA SAYONA MUESTRA SU VERDADERO ROSTRO'); this._dread=Math.min(100,this._dread+10); }
         if(canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.calm?e.speed.hunt*.55:e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z); }
         else seekLost(e.speed.hunt*.6);
       } else if(e.type==='llorona'){
-        e.sobT-=dt; if(e.sobT<=0){ e.sobT=5+Math.random()*3; this._sobSfx(dist); }
+        e.sobT-=dt; if(e.sobT<=0){ e.sobT=5+Math.random()*3; this.play('sob', { dist }); }
         if(canSee&&dist<e.senseRange&&e.grace<=0){
-          if(!e.wailed){ e.wailed=true; this._screamSfx(); this._banner('LA LLORONA TE HA VISTO'); }
+          if(!e.wailed){ e.wailed=true; this.play('scream'); this._banner('LA LLORONA TE HA VISTO'); }
           e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z);
         } else if(e.state==='hunt'&&canSee&&dist<e.senseRange*1.8){ tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; }
         else { e.state='patrol'; e.wailed=false; if(!e.waypoint||Math.hypot(e.pos.x-e.waypoint.x,e.pos.z-e.waypoint.z)<.7) e.waypoint=new T.Vector3((Math.random()-.5)*this.roomHalf*1.4,0,(Math.random()-.5)*this.roomHalf*1.4); tx=e.waypoint.x; tz=e.waypoint.z; spd=e.speed.patrol; }
       } else if(e.type==='silbon'){
         if(canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z); }
         else seekLost(e.speed.hunt*.7);
-        e.whistleT-=dt; if(e.whistleT<=0){ e.whistleT=4.6; if(dist<5) this._bonesSfx(); else this._whistleSfx(dist); }
+        e.whistleT-=dt; if(e.whistleT<=0){ e.whistleT=4.6; if(dist<5) this.play('bones'); else this.play('whistle', { dist }); }
       } else {
         if(e.state==='flee'){ e.fleeT-=dt; tx=e.pos.x-(cam.position.x-e.pos.x); tz=e.pos.z-(cam.position.z-e.pos.z); spd=e.speed.hunt; if(e.fleeT<=0){ e.state='patrol'; e.waypoint=null; } }
-        else if(dist<e.senseRange&&e.grace<=0&&canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; if(!e.gigT||now>e.gigT){ e.gigT=now+2600; this._giggleSfx(dist); } }
+        else if(dist<e.senseRange&&e.grace<=0&&canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; if(!e.gigT||now>e.gigT){ e.gigT=now+2600; this.play('giggle', { dist }); } }
         else { if(!e.waypoint||Math.hypot(e.pos.x-e.waypoint.x,e.pos.z-e.waypoint.z)<.7) e.waypoint=new T.Vector3((Math.random()-.5)*this.roomHalf*1.4,0,(Math.random()-.5)*this.roomHalf*1.4); tx=e.waypoint.x; tz=e.waypoint.z; spd=e.speed.patrol; }
       }
       const mx=tx-e.pos.x, mz=tz-e.pos.z, ml=Math.hypot(mx,mz)||1;
@@ -742,7 +743,7 @@ class Game {
       if(e.eyes){ e.eyes[0].material.emissiveIntensity = lit?.7:hunting?2.6+Math.sin(now*.018)*.9:1.5; }
       if(dist<e.catchRadius&&e.grace<=0&&canSee){
         if(e.type==='duende'&&!this.hidden){
-          this._dread=Math.min(100,this._dread+14); this._giggleSfx(1); e.state='flee'; e.fleeT=2.6; e.grace=1.2;
+          this._dread=Math.min(100,this._dread+14); this.play('giggle', { dist: 1 }); e.state='flee'; e.fleeT=2.6; e.grace=1.2;
           const kx=dx/(dist||1), kz=dz/(dist||1), kl=this.roomHalf-.6;
           cam.position.x=Math.max(-kl,Math.min(kl,cam.position.x+kx*1.4)); cam.position.z=Math.max(-kl,Math.min(kl,cam.position.z+kz*1.4));
           this._banner('¡LOS DUENDES!');
@@ -753,7 +754,7 @@ class Game {
   entityCatch(e){
     if(this.state.phase!=='playing') return;
     const B={sombra:'UNA SOMBRA TE POSEYÓ',sayona:'LA SAYONA TE ARRASTRÓ',silbon:'EL SILBÓN TE ECHÓ AL SACO',llorona:'LA LLORONA TE ACUNÓ'}[e.type]||'LA TORRE TE ARRASTRÓ';
-    this._despair(); this.ascendForced(B);
+    this.play('despair'); this.ascendForced(B);
   }
 
   _spawnCritters(rng){
@@ -788,7 +789,7 @@ class Game {
       const dx=c.pos.x-cam.position.x, dz=c.pos.z-cam.position.z, d=Math.hypot(dx,dz);
       let tx,tz,spd=c.spd;
       if(d<c.fear){ tx=c.pos.x+dx/(d||1)*4; tz=c.pos.z+dz/(d||1)*4; spd=c.spd*2.4;
-        if(c.kind==='rat'&&now>c.sq){ c.sq=now+3200+Math.random()*4200; this._squeakSfx(d); this._dread=Math.min(100,this._dread+1.2); } }
+        if(c.kind==='rat'&&now>c.sq){ c.sq=now+3200+Math.random()*4200; this.play('squeak', { dist: d }); this._dread=Math.min(100,this._dread+1.2); } }
       else { if(!c.wp||Math.hypot(c.pos.x-c.wp.x,c.pos.z-c.wp.z)<.4){ c.wp=new T.Vector3((Math.random()-.5)*this.roomHalf*1.7,0,(Math.random()-.5)*this.roomHalf*1.7); c.pause=Math.random()<.4?now+600+Math.random()*2000:0; }
         if(c.pause&&now<c.pause) spd=0; tx=c.wp.x; tz=c.wp.z; }
       const mx=tx-c.pos.x, mz=tz-c.pos.z, ml=Math.hypot(mx,mz)||1;
@@ -1182,7 +1183,7 @@ class Game {
     dr+=(df.creep+timeFactor*.75)*dt;
     this._dread=Math.max(0,Math.min(100,dr));
     this._updateEntities(dt); this._updateCritters(dt); this._tickRespawn(dt); this._updateBola(dt);
-    if(this._dread>=70&&!this._carreton){ this._carreton=true; this._hoovesSfx(); this._banner('OYES UN CARRETÓN EN LA CALLE'); }
+    if(this._dread>=70&&!this._carreton){ this._carreton=true; this.play('hooves'); this._banner('OYES UN CARRETÓN EN LA CALLE'); }
     if(!this.wardCollected&&this.wardPos&&cam.position.distanceTo(this.wardPos)<1.7) this.collectWard();
     if(!this.pistolTaken&&this.pistolPos&&cam.position.distanceTo(this.pistolPos)<1.6) this.pickupPistol();
     if(this.mementoPos&&!this.mementoCollected&&cam.position.distanceTo(this.mementoPos)<1.7) this.collectMemento();
@@ -1208,7 +1209,7 @@ class Game {
     if(this.temptation>50&&this._narrT<=0&&this.collected.length){ this._narrT=4.5; const idx=this.collected[Math.floor(Math.random()*this.collected.length)]; this._el.resistNarr.textContent=MEMENTOS[idx].mem; }
     else if(this._narrT<=0){ this._el.resistNarr.textContent = this.mementos?'' : 'No trajiste nada a qué aferrarte.'; }
     // lifeline auto-catch
-    if(this.temptation>=92&&this.lifelines>0){ this.lifelines--; this.temptation=52; const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0]; this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE'); this._chime(); }
+    if(this.temptation>=92&&this.lifelines>0){ this.lifelines--; this.temptation=52; const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0]; this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE'); this.play('chime'); }
     if(this.temptation>=100) return this.jumpEnding();
     if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
   }
@@ -1216,19 +1217,19 @@ class Game {
   collectWard(){
     this.wardCollected=true; this._dread=Math.max(0,this._dread-60); this.timeLeft=Math.min(this.diff().time,this.timeLeft+120);
     if(this.wardGroup) this.wardGroup.visible=false;
-    this._banner('AMULETO · LA POSESIÓN RETROCEDE'); this._chime();
+    this._banner('AMULETO · LA POSESIÓN RETROCEDE'); this.play('chime');
   }
   pickupPistol(){
     this.pistolTaken=true; if(this.pistolGroup) this.pistolGroup.visible=false;
     this.ammo=Math.min(8,this.ammo+4); this.setState({ammo:this.ammo});
-    this._banner('AGUA BENDITA · +4 CARGAS'); this._chime();
+    this._banner('AGUA BENDITA · +4 CARGAS'); this.play('chime');
   }
   collectMemento(){
     this.mementoCollected=true; if(this.mementoGroup) this.mementoGroup.visible=false;
     this.collected.push(this.mementoIdx); this.mementos=this.collected.length;
     this._dread=Math.max(0,this._dread-10);
     const m=MEMENTOS[this.mementoIdx];
-    this._banner(m.name.toUpperCase()); this._chime();
+    this._banner(m.name.toUpperCase()); this.play('chime');
     this._el.resistNarr.textContent=m.mem;
     this.setState({});
   }
@@ -1237,7 +1238,7 @@ class Game {
     if(this.phoneLed) this.phoneLed.material.emissiveIntensity=5;
     this.rescueT=this.diff().rescue;
     this._banner('LLAMADA CONECTADA · AGUANTA HASTA QUE LLEGUEN');
-    this._ringSfx();
+    this.play('ring');
   }
   _aimTarget(){
     if(!this.entities||!this.entities.length) return null;
@@ -1254,7 +1255,7 @@ class Game {
   _shoot(){
     if(this.ammo<=0||!this.entities) return;
     const T=window.THREE, cam=this.camera, fdir=this._fwd.set(0,0,-1).applyEuler(cam.rotation);
-    this.ammo--; this.setState({ammo:this.ammo}); this._splashSfx();
+    this.ammo--; this.setState({ammo:this.ammo}); this.play('splash');
     let best=null,bs=1e9;
     for(const e of this.entities){
       const dx=e.pos.x-cam.position.x, dz=e.pos.z-cam.position.z, d=Math.hypot(dx,dz);
@@ -1265,7 +1266,7 @@ class Game {
       this.floorGroup.remove(best.group); this._disposeGroup(best.group);
       this.entities=this.entities.filter(x=>x!==best);
       this._dread=Math.max(0,this._dread-10);
-      this._banner('¡DISUELTO EN AGUA BENDITA!'); this._vanishSfx();
+      this._banner('¡DISUELTO EN AGUA BENDITA!'); this.play('vanish');
       this._respawnQ=this._respawnQ||[];
       if(!this._respawnQ.length) this._respawnT=9+Math.random()*8;
       this._respawnQ.push(best.type);
@@ -1282,12 +1283,12 @@ class Game {
     const e=t==='sayona'?this._makeSayona(x,z,em):t==='silbon'?this._makeSilbon(x,z,em):t==='duende'?this._makeDuende(x,z,em):this._makeSombra(x,z,em);
     if(e.delay!==undefined) e.delay=1.5;
     this.entities.push(e);
-    this._banner('ALGO REGRESÓ'); this._scare();
+    this._banner('ALGO REGRESÓ'); this.play('scare');
   }
   ascendForced(cause){
     if(this._ascending||this.state.phase!=='playing') return;
     if(this.state.floor>=7) return this.jumpEnding();
-    this._ascending=true; this._ascendSfx(); this._scare();
+    this._ascending=true; this.play('ascend'); this.play('scare');
     this.rescueT=-1;
     const nf=this.state.floor+1;
     this._dread=18;
@@ -1300,7 +1301,7 @@ class Game {
   }
   jumpEnding(){
     if(this.state.phase!=='playing') return;
-    this._despair(); if(document.pointerLockElement) document.exitPointerLock();
+    this.play('despair'); if(document.pointerLockElement) document.exitPointerLock();
     this._recordTerminalRun('jumped');
     const sub=this.callMade
       ? 'Diste el paso. El rescate llegó a la azotea justo a tiempo para ver caer un cuerpo más. Las Torres del Sisal cobraron lo suyo.'
@@ -1308,7 +1309,7 @@ class Game {
     this.setState({phase:'end',paused:false,ending:{bad:true,title:'SALTASTE',sub,stats:this._statLine()}});
   }
   rescuedEnding(){
-    this._release(); if(document.pointerLockElement) document.exitPointerLock();
+    this.play('release'); if(document.pointerLockElement) document.exitPointerLock();
     this._recordTerminalRun('rescued');
     this.setState({phase:'end',paused:false,ending:{bad:false,title:'RESCATADO',
       sub:'Te arrancaron del borde con la posesión aún gritando dentro. Bajaste con vida — el primero en años. Los recuerdos que juntaste fueron lo único que te mantuvo de este lado del borde.',
@@ -1326,6 +1327,28 @@ class Game {
     });
   }
   _statLine(){ const names=this.collected.map(i=>MEMENTOS[i].name).join(' · '); return this.mementos?('Recuerdos rescatados ('+this.mementos+'/6): '+names):'No rescataste ningún recuerdo.'; }
+
+  play(kind, { dist = 1 } = {}) {
+    if (!AUDIO_KINDS.has(kind)) return false;
+    switch (kind) {
+      case 'scream': this._screamSfx(); return true;
+      case 'giggle': this._giggleSfx(dist); return true;
+      case 'whistle': this._whistleSfx(dist); return true;
+      case 'bones': this._bonesSfx(); return true;
+      case 'sob': this._sobSfx(dist); return true;
+      case 'hooves': this._hoovesSfx(); return true;
+      case 'scare': this._scare(); return true;
+      case 'squeak': this._squeakSfx(dist); return true;
+      case 'ring': this._ringSfx(); return true;
+      case 'splash': this._splashSfx(); return true;
+      case 'vanish': this._vanishSfx(); return true;
+      case 'chime': this._chime(); return true;
+      case 'ascend': this._ascendSfx(); return true;
+      case 'despair': this._despair(); return true;
+      case 'release': this._release(); return true;
+      default: return false;
+    }
+  }
 
   // ---------- audio ----------
   _screamSfx(){ const ctx=this._audioCtx; if(!ctx||!this._master) return; const t=ctx.currentTime;
