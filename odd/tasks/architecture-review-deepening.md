@@ -8,10 +8,10 @@ Objective: Implement every architecture-review candidate behind deep seams with 
 - Assumptions: `public/bestiary.mjs`, `public/level.mjs`, `public/hud.mjs` are new-file names chosen by parent (review named seams, not files); index.html wiring stays parent-owned to keep parallel surfaces disjoint.
 
 ## Tasks
-- T1 (S1, route: parent-inline, status: in_progress, evidence: public/audio.mjs + Game.play chime/vanish wired, RED->GREEN observed): finish dist callers + move synthesis inside module, wire fully.
-- T2 (S2, route: delegated-direct, status: completed-module (wiring pending), evidence: public/bestiary.mjs + tests/bestiary.test.mjs, RED ERR_MODULE_NOT_FOUND -> GREEN 5 pass; worker ses_ebfd88b2dffevpnHdZoeuLvCuf): wire index.html spawners/tick to bestiary.spawn next.
-- T3 (S3, route: delegated-direct, status: completed-module (wiring pending), evidence: public/level.mjs + tests/level.test.mjs, RED ERR_MODULE_NOT_FOUND -> GREEN 5 pass; worker ses_ebfd88b2cffeT458kiJpMwVgWf): wire buildFloor/collides/pickupAt next (push-out, disposal, find-retry stay Game-side until wiring).
-- T4 (S4, route: delegated-direct, status: completed-module (wiring pending), evidence: public/hud.mjs + tests/hud.test.mjs, RED ERR_MODULE_NOT_FOUND -> GREEN 4 pass; worker ses_ebfd88b2bffe3gHcQ1S4uuC8j6): wire _sync/_banner/_statLine to hud.render next.
+- T1 (S1, route: parent-inline, status: completed, evidence: 80dd786 — all 18 call shapes via play(kind), synth untouched; suite 61 pass / 0 fail): done.
+- T2 (S2, route: delegated-direct, status: completed-module committed 1a998e8 (wiring pending), evidence: RED ERR_MODULE_NOT_FOUND -> GREEN 5 pass; worker ses_ebfd88b2dffevpnHdZoeuLvCuf): wire index.html spawners/tick to bestiary.spawn next.
+- T3 (S3, route: delegated-direct, status: completed-module committed 1d8496c (wiring pending), evidence: RED ERR_MODULE_NOT_FOUND -> GREEN 5 pass; worker ses_ebfd88b2cffeT458kiJpMwVgWf): wire buildFloor/collides/pickupAt next.
+- T4 (S4, route: delegated-direct, status: completed-module committed 339f263 (wiring pending), evidence: RED ERR_MODULE_NOT_FOUND -> GREEN 4 pass; worker ses_ebfd88b2bffe3gHcQ1S4uuC8j6): wire _sync/_banner/_statLine to hud.render next. Tracking doc committed 03ace34. Branch: feature/architecture-review-deepening.
 
 ## Log
 - L1 (user verbatim): "we were working in this architecture review: file:///private/var/folders/y6/qfdnxxsj6jv8_xlgpxrchvvr0000gn/T/architecture-review-1791325454.html can we continue on that work?"
