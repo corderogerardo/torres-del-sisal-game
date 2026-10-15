@@ -223,6 +223,7 @@ import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createOptionalRunClient, createRunSession, isValidDisplayAlias } from './run-records.mjs';
 import { AUDIO_KINDS } from './audio.mjs';
+import { spotBlocked } from './level.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
@@ -236,6 +237,10 @@ const MEMENTOS = [
   {name:'Un mensaje de voz',        mem:'«Vuelve a casa. Te estamos esperando.»'},
   {name:'El rosario de tu abuela',  mem:'Cuentas gastadas de tanto rezar por ti.'},
 ];
+// Uniform entity dispatch: plan code -> factory method. Unknown codes fall
+// back to _makeSombra, matching the old else-branch.
+const SPAWN_FACTORY={s:'_makeSombra',d:'_makeDuende',y:'_makeSayona',l:'_makeLlorona',b:'_makeSilbon'};
+const RESPAWN_FACTORY={sayona:'_makeSayona',silbon:'_makeSilbon',duende:'_makeDuende'};
 
 class Game {
   constructor(){
@@ -557,11 +562,7 @@ class Game {
     if(em<1&&plan.length>2) plan=plan.slice(0,plan.length-1);
     if(em>1.2) plan=plan.concat(['s']);
     for(const t of plan){ const [x,z]=spot();
-      if(t==='s') this.entities.push(this._makeSombra(x,z,em));
-      else if(t==='d') this.entities.push(this._makeDuende(x,z,em));
-      else if(t==='y') this.entities.push(this._makeSayona(x,z,em));
-      else if(t==='l') this.entities.push(this._makeLlorona(x,z,em));
-      else this.entities.push(this._makeSilbon(x,z,em));
+      this.entities.push(this[SPAWN_FACTORY[t]||'_makeSilbon'](x,z,em));
     }
   }
   _themes(){ return [
@@ -802,13 +803,8 @@ class Game {
   }
 
   _spotBlocked(x,z,pad){
-    pad=pad===undefined?0.9:pad;
-    const lim=this.roomHalf-1.1;
-    if(Math.abs(x)>lim||Math.abs(z)>lim) return true;
-    for(const c of this.colliders||[]){
-      if(x>c.x0-pad&&x<c.x1+pad&&z>c.z0-pad&&z<c.z1+pad) return true;
-    }
-    return false;
+    if(!Number.isFinite(x)||!Number.isFinite(z)) return false;
+    return spotBlocked(x, z, { boxes: this.colliders, limit: this.roomHalf-1.1, pad });
   }
 
   // Punto libre aleatorio sin colisionar: evita colisionadores (muros, pilares,
@@ -1280,7 +1276,7 @@ class Game {
     const t=this._respawnQ.shift(), em=this.diff().pull, cam=this.camera;
     let x,z,gd=0;
     do{ x=(Math.random()-.5)*this.roomHalf*1.6; z=(Math.random()-.5)*this.roomHalf*1.6; gd++; }while(gd<30&&Math.hypot(x-cam.position.x,z-cam.position.z)<9);
-    const e=t==='sayona'?this._makeSayona(x,z,em):t==='silbon'?this._makeSilbon(x,z,em):t==='duende'?this._makeDuende(x,z,em):this._makeSombra(x,z,em);
+    const e=t==='sayona'||t==='silbon'||t==='duende'?this[RESPAWN_FACTORY[t]](x,z,em):this._makeSombra(x,z,em);
     if(e.delay!==undefined) e.delay=1.5;
     this.entities.push(e);
     this._banner('ALGO REGRESÓ'); this.play('scare');

@@ -76,3 +76,14 @@ test('audio seam is wired behind play(kind)', () => {
   assert.match(pageSource, /this\.play\('chime'\)/);
   assert.match(pageSource, /this\.play\('vanish'\)/);
 });
+
+test('bestiary spawn sites dispatch through a factory map', () => {
+  assert.match(pageSource, /SPAWN_FACTORY=\{s:'_makeSombra'/);
+  assert.match(pageSource, /RESPAWN_FACTORY=\{sayona:'_makeSayona'/);
+  assert.doesNotMatch(pageSource, /else if\(t===/);
+});
+
+test('spot checks delegate to the level module', () => {
+  assert.match(pageSource, /from '\.\/level\.mjs'/);
+  assert.match(pageSource, /return spotBlocked\(x, z, \{ boxes: this\.colliders/);
+});
