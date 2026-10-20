@@ -7,14 +7,14 @@ const migration = await readFile(
   'utf8',
 ).catch(() => '');
 
-test('run identity is globally unique only after duplicate preflight', () => {
+test('historical upsert migration preflights global run identity before indexing', () => {
   assert.match(migration, /duplicate preflight/i, 'migration must clearly identify its duplicate preflight');
   assert.match(migration, /if exists\s*\([\s\S]*group by\s+r\.client_run_id[\s\S]*having count\(\*\) > 1/i, 'migration must detect duplicate client run IDs');
   assert.match(migration, /raise exception[^;]*(?:duplicate|client_run_id)/i, 'migration must fail closed with a clear duplicate error');
   assert.match(migration, /create unique index[^;]*run_records_client_run_id[^;]*on public\.run_records\s*\(client_run_id\)/i, 'client run IDs must be globally unique');
 });
 
-test('submission RPC is authenticated, narrowly granted, and validates consent and run bounds', () => {
+test('historical upsert migration validates its owner-authenticated submission contract', () => {
   assert.match(migration, /function public\.submit_run_record\s*\(\s*p_client_run_id uuid,\s*p_difficulty text,\s*p_outcome text,\s*p_duration_ms bigint,\s*p_floor_reached smallint,\s*p_mementos smallint,\s*p_display_alias text default null,\s*p_publish_rescue boolean default false\s*\)\s*returns uuid/i, 'RPC must expose the agreed parameter and return contract');
   assert.match(migration, /security definer\s+set search_path\s*=\s*''/i, 'RPC must be a security definer with an empty search path');
   assert.match(migration, /auth\.uid\(\)/i, 'RPC must derive its caller from auth.uid()');
@@ -29,7 +29,7 @@ test('submission RPC is authenticated, narrowly granted, and validates consent a
   assert.match(migration, /grant execute on function public\.submit_run_record\([^;]*\)\s+to authenticated/i, 'only authenticated callers may execute the RPC');
 });
 
-test('global idempotency serializes conflicts and preserves terminal outcomes', () => {
+test('historical upsert migration serializes retries and preserves terminal outcomes', () => {
   assert.match(migration, /on conflict\s*\(client_run_id\)\s*do nothing/i, 'concurrent inserts must not fail on a duplicate run ID');
   assert.match(migration, /select[^;]*from public\.run_records[^;]*where r\.client_run_id\s*=\s*p_client_run_id[^;]*for update/i, 'existing rows must be locked before replay handling');
   assert.match(migration, /if\s+v_run\.outcome\s*=\s*'in_progress'[\s\S]*update public\.run_records/i, 'an in-progress row may be transitioned to a terminal outcome');
@@ -43,7 +43,7 @@ test('global idempotency serializes conflicts and preserves terminal outcomes', 
   assert.match(migration, /terminal run requires a recorded in_progress start/i, 'terminal outcomes must not create runs without a durable start event');
 });
 
-test('public rescue publishing is optional, preference-gated, and owner-bound', () => {
+test('historical upsert migration keeps its optional owner-bound rescue publication path', () => {
   assert.match(migration, /v_display_alias\s*:=\s*pg_catalog\.btrim\(p_display_alias\)[\s\S]*p_outcome\s*=\s*'rescued'[\s\S]*p_publish_rescue[\s\S]*v_display_alias is not null/i, 'public rescue publishing must require a rescued run, explicit choice, and valid alias');
   assert.match(migration, /rescue_opt_in/i, 'public rescue publishing must check current rescue consent');
   assert.match(migration, /insert into public\.public_rescue_entries[\s\S]*owner_id[\s\S]*v_run\.user_id/i, 'public entry owner must come from the existing run row');
