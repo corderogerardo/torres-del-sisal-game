@@ -5,7 +5,8 @@ import test from 'node:test';
 const page = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 
 function methodSource(name, nextName) {
-  const start = page.indexOf(`  ${name}(`);
+  const candidates = [page.indexOf(`  ${name}(`), page.indexOf(`  async ${name}(`)].filter((index) => index >= 0);
+  const start = candidates.length ? Math.min(...candidates) : -1;
   const end = page.indexOf(`\n  ${nextName}(`, start + 1);
   assert.ok(start >= 0 && end > start, `could not locate Game.${name}()`);
   return page.slice(start, end);
@@ -15,31 +16,34 @@ function assertPageMatches(pattern, description) {
   assert.ok(pattern.test(page), description);
 }
 
-test('statistics and publication choices are separate, labelled, and off by default', () => {
-  assertPageMatches(/<input[^>]*type="checkbox"[^>]*id="statsOptIn"/, 'anonymous statistics opt-in checkbox is required');
-  assertPageMatches(/<input[^>]*type="checkbox"[^>]*id="rescueOptIn"/, 'public rescue opt-in checkbox is required');
-  assertPageMatches(/<label[^>]*for="statsOptIn"/, 'statistics checkbox needs a label');
-  assertPageMatches(/<label[^>]*for="rescueOptIn"/, 'publication checkbox needs a label');
-  assertPageMatches(/<input[^>]*id="displayAlias"[^>]*maxlength="24"/, 'alias input must be bounded');
-  assert.doesNotMatch(page.match(/<input[^>]*id="statsOptIn"[^>]*>/)?.[0] || '', /\bchecked\b/);
-  assert.doesNotMatch(page.match(/<input[^>]*id="rescueOptIn"[^>]*>/)?.[0] || '', /\bchecked\b/);
+test('run telemetry is automatic by default with a visible opt-out and no player identity', () => {
+  assertPageMatches(/<input[^>]*type="checkbox"[^>]*id="runTelemetryOptOut"/, 'telemetry opt-out checkbox is required');
+  assertPageMatches(/<label[^>]*for="runTelemetryOptOut"/, 'telemetry opt-out needs a label');
+  assert.doesNotMatch(page.match(/<input[^>]*id="runTelemetryOptOut"[^>]*>/)?.[0] || '', /\bchecked\b/);
+  assertPageMatches(/se registran automáticamente estadísticas agregadas/i, 'notice must disclose default-on aggregate collection');
+  assertPageMatches(/nombre de usuario ni un identificador de jugador/i, 'notice must state that run data is not player-linked');
+  assertPageMatches(/identificador aleatorio solo para evitar duplicados/i, 'notice must explain the run-scoped idempotency identifier');
+  assertPageMatches(/no se muestra el historial individual/i, 'notice must explain that individual histories are not exposed');
+  assert.match(methodSource('_updateRunTelemetryPreferences', '_renderRunRecords'), /setRunTelemetryEnabled\(enabled\)/);
+  assert.match(methodSource('_updateRunTelemetryPreferences', '_renderRunRecords'), /clearPendingRuns\(\)/);
 });
 
 test('privacy notice distinguishes game-owned fields from provider connection metadata', () => {
-  assertPageMatches(/Las tablas del juego no guardan direcciones IP/i, 'notice must state that game tables do not store IP fields');
+  assertPageMatches(/Las tablas(?: de telemetría)? del juego no guardan direcciones IP/i, 'notice must state that game tables do not store IP fields');
   assertPageMatches(/Supabase puede procesar la dirección IP y el agente de usuario/i, 'notice must disclose provider-side connection metadata');
   assertPageMatches(/retención depende de la configuración y el plan del proyecto/i, 'notice must point to project-dependent log retention');
+  assertPageMatches(/Las cifras cuentan partidas, no personas únicas/i, 'notice must not claim unique people');
   assertPageMatches(/no se verifican contra trampas/i, 'notice must label scores as unverified');
-  assertPageMatches(/sesiones anónimas, no personas/i, 'notice must not claim unique people');
-  assertPageMatches(/borrar.*antes de cerrar esta sesión/i, 'notice must disclose the live-session deletion limit');
-  assertPageMatches(/no podrás recuperar ese historial/i, 'notice must disclose that anonymous history is not recoverable later');
+  assertPageMatches(/no hay borrado individual desde el juego/i, 'notice must disclose that runs cannot be deleted individually');
 });
 
-test('dynamic leaderboard rendering uses text nodes, not user-controlled HTML', () => {
+test('aggregate rendering uses text nodes and exposes no player-controlled fields', () => {
   const render = methodSource('_renderRunRecords', '_formatRunDuration');
   assert.match(render, /textContent/);
-  assert.match(render, /replaceChildren/);
   assert.doesNotMatch(render, /innerHTML/);
+  assert.match(render, /averageDurationMs/);
+  assert.match(render, /p50DurationMs/);
+  assert.match(render, /p95DurationMs/);
 });
 
 test('only rescued and jumped endings submit terminal outcomes', () => {
@@ -62,10 +66,22 @@ test('run recording starts and ends without awaiting network work in gameplay tr
   assert.doesNotMatch(terminal, /await\s+this\._runRecords\.finishRun/);
 });
 
+test('startup replays queued telemetry only after the intro notice can paint', () => {
+  const constructor = methodSource('constructor', 'setState');
+  const sync = constructor.indexOf('this._sync()');
+  const firstFrame = constructor.indexOf('requestAnimationFrame');
+  const secondFrame = constructor.indexOf('requestAnimationFrame', firstFrame + 1);
+  assert.ok(sync >= 0 && firstFrame > sync, 'paint scheduling must follow the initial intro render');
+  assert.ok(secondFrame > firstFrame, 'a second frame must follow the notice paint before network replay');
+  assert.match(constructor.slice(firstFrame), /requestAnimationFrame\(\(\)=>\{[\s\S]*requestAnimationFrame\(\(\)=>\{[\s\S]*flushPendingRuns/);
+  assert.match(constructor.slice(firstFrame, secondFrame), /_runTelemetryEnabled/);
+});
+
 test('end screen announces non-blocking record success or failure', () => {
   assertPageMatches(/id="endRunRecordStatus"[^>]*role="status"[^>]*aria-live="polite"/, 'end screen needs a polite record-status region');
   const terminal = methodSource('_recordTerminalRun', '_statLine');
   assert.match(terminal, /endRunRecordStatus/);
   assert.match(terminal, /\.then\(/);
   assert.doesNotMatch(terminal, /await\s+this\._runRecords\.finishRun/);
+  assert.match(terminal, /Partida guardada en este dispositivo/);
 });

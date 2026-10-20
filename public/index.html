@@ -45,12 +45,7 @@
   .records-panel h2,.records-panel h3{color:#A8DADC;font-size:12px;letter-spacing:.8px;text-transform:uppercase}
   .records-choice{display:flex;align-items:flex-start;gap:9px;margin-top:10px;cursor:pointer}
   .records-choice input{flex:0 0 auto;width:17px;height:17px;margin-top:1px;accent-color:#A8DADC}
-  .records-alias{display:grid;gap:5px;margin:10px 0 0 26px}
-  .records-alias input{padding:8px 10px;border:1px solid rgba(168,218,220,.6);border-radius:6px;background:#05070a;color:#F1FAEE;font:inherit;user-select:text;-webkit-user-select:text}
   .records-status{min-height:1.5em;margin-top:10px;color:#A8DADC}
-  .records-list{padding-left:22px;margin-top:6px}
-  .records-list li+li{margin-top:4px}
-  .records-delete{padding:8px 14px;margin-top:10px;font-size:11px;letter-spacing:.8px}
   .records-panel :focus-visible{outline:2px solid #A8DADC;outline-offset:3px}
   .intro-panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px;text-align:left;align-items:start}
   .intro-panels .support-note,.intro-panels .records-panel{margin-top:0;height:100%}
@@ -168,31 +163,19 @@
         <p>Si tú o alguien cercano está en peligro inmediato, busca a una persona de confianza, acude al centro de salud más cercano o contacta con el servicio de emergencias local.</p>
       </section>
       <section id="runRecordsPanel" class="records-panel" aria-labelledby="runRecordsTitle">
-        <h2 id="runRecordsTitle">Registros comunitarios (opcional)</h2>
-        <p>Ambas opciones están apagadas por defecto y el juego funciona sin conexión. Las tablas del juego no guardan direcciones IP, correo, dispositivo ni historias de acciones.</p>
-        <p>Supabase puede procesar la dirección IP y el agente de usuario para autenticación y registros de plataforma. La retención depende de la configuración y el plan del proyecto.</p>
-        <p>Puedes borrar tus registros de juego antes de cerrar esta sesión. Como los tokens no se conservan, después no podrás recuperar ese historial. Las cifras describen sesiones anónimas, no personas, y los resultados se declaran desde el cliente: no se verifican contra trampas.</p>
-        <label class="records-choice" for="statsOptIn">
-          <input type="checkbox" id="statsOptIn">
-          <span>Compartir estadísticas anónimas: partidas iniciadas, rescatadas, saltadas y sin cierre. No publica tu alias.</span>
+        <h2 id="runRecordsTitle">Estadísticas de partidas</h2>
+        <p>Se registran automáticamente estadísticas agregadas de las partidas: inicios, desenlace y duración. No se guarda un nombre de usuario ni un identificador de jugador, y no se muestra el historial individual. Cada corrida usa un identificador aleatorio solo para evitar duplicados; no conecta varias partidas con una misma persona. Las partidas pendientes se conservan en este dispositivo hasta sincronizarse; el juego sigue disponible sin conexión.</p>
+        <p>Las tablas de telemetría del juego no guardan direcciones IP, agente de usuario, correo, dispositivo ni datos de identidad. Supabase puede procesar la dirección IP y el agente de usuario en sus registros de plataforma; su retención depende de la configuración y el plan del proyecto.</p>
+        <p>Las cifras cuentan partidas, no personas únicas. Desactivar la recopilación no borra métricas ya registradas; solo detiene corridas futuras y descarta envíos pendientes en este dispositivo. Los desenlaces son reportados por el cliente y no se verifican contra trampas. Como las partidas no se vinculan a un jugador, no hay borrado individual desde el juego.</p>
+        <label class="records-choice" for="runTelemetryOptOut">
+          <input type="checkbox" id="runTelemetryOptOut">
+          <span>Desactivar el registro automático de estadísticas de partidas.</span>
         </label>
-        <label class="records-choice" for="rescueOptIn">
-          <input type="checkbox" id="rescueOptIn">
-          <span>Publicar un alias y solo tus rescates, con dificultad, duración y recuerdos reunidos.</span>
-        </label>
-        <div id="aliasField" class="records-alias" hidden>
-          <label for="displayAlias">Alias público</label>
-          <input type="text" id="displayAlias" maxlength="24" pattern="[A-Za-z0-9 _-]{1,24}" autocomplete="nickname" aria-describedby="aliasRules">
-          <span id="aliasRules">Hasta 24 caracteres: letras sin acento, números, espacios, guion o guion bajo.</span>
-        </div>
-        <p id="runRecordsStatus" class="records-status" role="status" aria-live="polite" aria-atomic="true">Los registros están desactivados.</p>
+        <p id="runRecordsStatus" class="records-status" role="status" aria-live="polite" aria-atomic="true">Las estadísticas agregadas se registran automáticamente; puedes desactivarlas aquí.</p>
         <div id="runRecordsData" hidden>
-          <h3>Actividad reportada</h3>
+          <h3>Actividad agregada de partidas</h3>
           <p id="runAnalyticsSummary" aria-live="polite"></p>
-          <h3 style="margin-top:10px">Mejores rescates · no verificados</h3>
-          <ol id="publicRunResults" class="records-list" aria-live="polite"></ol>
         </div>
-        <button id="deleteRunRecords" class="btn records-delete" type="button" hidden>Eliminar mis registros de esta sesión</button>
       </section>
       </div>
       <div style="margin-top:22px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap">
@@ -210,18 +193,17 @@
   <div id="end" class="fill hidden" style="align-items:center;justify-content:center;padding:24px;pointer-events:auto;background:linear-gradient(rgba(5,7,10,.8),rgba(5,7,10,.95))">
     <div style="max-width:540px;width:100%;text-align:center;animation:creep .6s ease both">
       <h1 id="endTitle" class="display" style="font-weight:900;font-size:44px;line-height:1.04;letter-spacing:.5px"></h1>
-      <p id="endSub" style="margin-top:18px;font-weight:400;font-size:16px;line-height:1.7;color:rgba(241,250,238,.82)"></p>
-      <div id="endStats" style="margin-top:16px;font-weight:700;font-size:13px;color:rgba(241,250,238,.5);letter-spacing:.5px"></div>
-      <p id="endRunRecordStatus" role="status" aria-live="polite" aria-atomic="true" style="margin-top:10px;min-height:1.5em;color:#A8DADC;font-size:12px"></p>
-      <button id="deleteRunRecordsEnd" class="btn records-delete" type="button" hidden>Eliminar mis registros de esta sesión</button>
-      <button id="restartBtn" class="btn" style="margin-top:26px">Volver a entrar ▸</button>
+       <p id="endSub" style="margin-top:18px;font-weight:400;font-size:16px;line-height:1.7;color:rgba(241,250,238,.82)"></p>
+       <div id="endStats" style="margin-top:16px;font-weight:700;font-size:13px;color:rgba(241,250,238,.5);letter-spacing:.5px"></div>
+       <p id="endRunRecordStatus" role="status" aria-live="polite" aria-atomic="true" style="margin-top:10px;min-height:1.5em;color:#A8DADC;font-size:12px"></p>
+       <button id="restartBtn" class="btn" style="margin-top:26px">Volver a entrar ▸</button>
     </div>
   </div>
 
 <script type="module" data-cfasync="false">
 import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
-import { createOptionalRunClient, createRunSession, isValidDisplayAlias } from './run-records.mjs';
+import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
 import { AUDIO_KINDS } from './audio.mjs';
 import { spotBlocked } from './level.mjs';
 "use strict";
@@ -253,8 +235,10 @@ class Game {
     this.ammo = 0; this.rescueT = -1; this.phoneUsed = false; this.pistolTaken = false; this.callMade = false;
     this.hidden = null;
     this.mementos = 0; this.collected = []; this.temptation = 0; this.lifelines = 0; this._narrT = 0;
-    this._runRecords = createOptionalRunClient();
-    this._runConsent = { statsOptIn:false, rescueOptIn:false };
+    this._runRecords = createRunTelemetryClient();
+    this._runTelemetryEnabled=getRunTelemetryEnabled();
+    document.getElementById('runTelemetryOptOut').checked=!this._runTelemetryEnabled;
+    if(!this._runTelemetryEnabled) void this._runRecords.clearPendingRuns();
     this._runSession = null;
     this.state = { phase:'intro', floor:1, timeText:'05:00', timerColor:'#F1FAEE', dread:0, objective:'', banner:'', paused:false, ending:null, batt:100, stam:100, compassRot:0, ammo:0, hiddenView:false, floorName:'', temptation:0, showResist:false };
     this._el = {
@@ -275,6 +259,11 @@ class Game {
     this._wire();
     this._waitThree(0);
     this._sync();
+    if(this._runTelemetryEnabled) requestAnimationFrame(()=>{
+      if(this._runTelemetryEnabled) requestAnimationFrame(()=>{
+        if(this._runTelemetryEnabled) void this._runRecords.flushPendingRuns({enabled:true});
+      });
+    });
   }
 
   setState(patch){ Object.assign(this.state, patch); this._sync(); }
@@ -317,7 +306,7 @@ class Game {
     document.querySelectorAll('.diffbtn').forEach(b=>b.addEventListener('click',()=>{
       document.querySelectorAll('.diffbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on'); this.props.difficulty=b.dataset.diff;
     }));
-    document.getElementById('enterBtn').addEventListener('click',()=>this.start());
+    document.getElementById('enterBtn').addEventListener('click',()=>{ void this._updateRunTelemetryPreferences(); this.start(); });
     document.getElementById('restartBtn').addEventListener('click',()=>this.start());
     this._el.pause.addEventListener('click',()=>this._lock());
     this._kd=(e)=>{ const t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return; this.keys[e.code]=true; if(['KeyW','KeyS','KeyA','KeyD','Space'].includes(e.code)) e.preventDefault(); if(e.code==='KeyF'&&this.state.phase==='playing'&&!this.state.paused){ this.torchOn=!this.torchOn; if(this.torchOn&&this.torchBattery<=0) this.torchOn=false; } if(e.code==='KeyE') this._toggleHide(); if(e.code==='Escape'&&this._fallbackLook&&this.state.phase==='playing') this.setState({paused:true}); };
@@ -327,14 +316,11 @@ class Game {
     document.addEventListener('mousemove',this._mm);
     this._plc=()=>{ if(document.pointerLockElement){ this._hadLock=true; this._fallbackLook=false; if(this.state.phase==='playing') this.setState({paused:false}); } else if(this.state.phase==='playing'&&!this._fallbackLook){ this.setState({paused:true}); } };
     document.addEventListener('pointerlockchange',this._plc);
-    document.addEventListener('visibilitychange',()=>{ const c=this._audioCtx; if(!c) return; if(document.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } });
+    document.addEventListener('visibilitychange',()=>{ const c=this._audioCtx; if(c){ if(document.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } } if(!document.hidden) void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
+    window.addEventListener('online',()=>{ void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
     window.addEventListener('resize',()=>this._onResize());
     this.stage.addEventListener('click',()=>{ if(this.state.phase!=='playing') return; if(this.state.paused){ this._lock(); return; } this._shoot(); });
-    document.getElementById('statsOptIn').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
-    document.getElementById('rescueOptIn').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
-    document.getElementById('displayAlias').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
-    document.getElementById('deleteRunRecords').addEventListener('click',()=>{ void this._deleteRunRecords(); });
-    document.getElementById('deleteRunRecordsEnd').addEventListener('click',()=>{ void this._deleteRunRecords(); });
+    document.getElementById('runTelemetryOptOut').addEventListener('change',()=>{ void this._updateRunTelemetryPreferences(); });
   }
 
   _setRunRecordsStatus(message){ document.getElementById('runRecordsStatus').textContent=message; }
@@ -342,98 +328,51 @@ class Game {
   _clearRunRecords(){
     document.getElementById('runRecordsData').hidden=true;
     document.getElementById('runAnalyticsSummary').textContent='';
-    document.getElementById('publicRunResults').replaceChildren();
   }
 
-  async _updateRunRecordsPreferences(){
-    const statsOptIn=document.getElementById('statsOptIn').checked;
-    const publishRequested=document.getElementById('rescueOptIn').checked;
-    const alias=document.getElementById('displayAlias').value.trim();
-    const aliasValid=isValidDisplayAlias(alias);
-    const rescueOptIn=publishRequested&&aliasValid;
-    const consent={statsOptIn,rescueOptIn};
-    this._runConsent=consent;
-    document.getElementById('aliasField').hidden=!publishRequested;
-    document.getElementById('deleteRunRecords').hidden=true;
-    document.getElementById('deleteRunRecordsEnd').hidden=true;
+  async _updateRunTelemetryPreferences(){
+    const enabled=!document.getElementById('runTelemetryOptOut').checked;
+    this._runTelemetryEnabled=enabled;
+    this._runRecords.setEnabled(enabled);
+    const localPreferenceSaved=setRunTelemetryEnabled(enabled);
 
-    if(!statsOptIn&&!rescueOptIn){
-      await this._runRecords.savePreferences(consent);
+    if(!enabled){
+      await this._runRecords.clearPendingRuns();
       this._clearRunRecords();
-      this._setRunRecordsStatus(publishRequested?'Escribe un alias válido para publicar rescates.':'Los registros están desactivados.');
+      this._setRunRecordsStatus(!localPreferenceSaved
+        ?'No se pudo recordar el cambio; las estadísticas quedan desactivadas solo durante esta sesión.'
+        :'Las estadísticas automáticas están desactivadas.');
       return;
     }
 
-    if(!await this._runRecords.savePreferences(consent)){
-      this._setRunRecordsStatus('No se pudo guardar la preferencia. El juego sigue disponible sin conexión.');
-      return;
-    }
-    document.getElementById('deleteRunRecords').hidden=false;
-    document.getElementById('deleteRunRecordsEnd').hidden=false;
-
-    this._setRunRecordsStatus('Despertando la base de datos…');
-    await this._runRecords.wakeUp(consent);
-
-    const data=await this._runRecords.loadPublicData(consent);
+    this._setRunRecordsStatus('Cargando métricas agregadas…');
+    const data=await this._runRecords.loadPublicData();
     this._renderRunRecords(data);
-    this._setRunRecordsStatus(data?.unavailable
-      ?'No se pudieron cargar algunos registros. El juego sigue disponible.'
-      :publishRequested&&!aliasValid
-        ?'Estadísticas activas. Escribe un alias válido para publicar rescates.'
-        :'Registros actualizados. Los rescates del marcador no están verificados.');
+    const status=data?.unavailable
+      ?'Las métricas no están disponibles ahora; el juego sigue funcionando.'
+      :data
+        ?'Las estadísticas agregadas se registran automáticamente; no identifican jugadores.'
+        :'La recopilación está activa. Las partidas se sincronizarán cuando haya configuración y conexión.';
+    this._setRunRecordsStatus(!localPreferenceSaved
+      ?'No se pudo guardar la preferencia local. '+status
+      :status);
   }
 
   _renderRunRecords(data){
     const panel=document.getElementById('runRecordsData');
     const summary=document.getElementById('runAnalyticsSummary');
-    const list=document.getElementById('publicRunResults');
-    list.replaceChildren();
     if(!data){ panel.hidden=true; summary.textContent=''; return; }
     panel.hidden=false;
 
     const counts=data.analytics;
     summary.textContent=counts
-      ? `Inicios: ${counts.started} · En curso o sin cierre: ${counts.inProgress} · Rescatados: ${counts.rescued} · Saltos: ${counts.jumped} · Sesiones anónimas: ${counts.anonymousSessions}`
-      :'Las estadísticas no están activadas para esta sesión.';
-
-    for(const difficulty of ['Piadoso','Normal','Pesadilla']){
-      const entries=data.rescues.filter(entry=>entry.difficulty===difficulty);
-      if(!entries.length){
-        const empty=document.createElement('li');
-        empty.textContent=`${difficulty}: todavía no hay rescates publicados.`;
-        list.appendChild(empty);
-        continue;
-      }
-      for(const entry of entries){
-        const item=document.createElement('li');
-        item.textContent=`${difficulty} · ${entry.displayAlias} · ${this._formatRunDuration(entry.durationMs)} · ${entry.mementos}/6 recuerdos`;
-        list.appendChild(item);
-      }
-    }
+      ? `Partidas: ${counts.started} · En curso: ${counts.inProgress} · Rescatados: ${counts.rescued} · Saltos: ${counts.jumped} · Duración promedio: ${this._formatRunDuration(counts.averageDurationMs)} · P50: ${this._formatRunDuration(counts.p50DurationMs)} · P95: ${this._formatRunDuration(counts.p95DurationMs)}`
+      :'No hay métricas agregadas disponibles todavía.';
   }
 
   _formatRunDuration(durationMs){
     const totalSeconds=durationMs/1000, minutes=Math.floor(totalSeconds/60), seconds=(totalSeconds%60).toFixed(1).padStart(4,'0');
     return `${minutes}:${seconds}`;
-  }
-
-  async _deleteRunRecords(){
-    if(!window.confirm('¿Eliminar tus partidas privadas y rescates publicados de esta sesión? No podrás recuperar este historial después de cerrar la página.')) return;
-    this._setRunRecordsStatus('Eliminando tus registros…');
-    if(!await this._runRecords.deleteMyRunData()){
-      this._setRunRecordsStatus('No se pudieron eliminar los registros. El juego sigue disponible.');
-      return;
-    }
-    document.getElementById('statsOptIn').checked=false;
-    document.getElementById('rescueOptIn').checked=false;
-    document.getElementById('displayAlias').value='';
-    document.getElementById('aliasField').hidden=true;
-    document.getElementById('deleteRunRecords').hidden=true;
-    document.getElementById('deleteRunRecordsEnd').hidden=true;
-    this._runConsent={statsOptIn:false,rescueOptIn:false};
-    this._runSession=null;
-    this._clearRunRecords();
-    this._setRunRecordsStatus('Se eliminaron tus registros de esta sesión.');
   }
 
   _waitThree(n){ if(window.THREE){ this._initThree(); return; } if(n>160) return; setTimeout(()=>this._waitThree(n+1),50); }
@@ -1318,11 +1257,13 @@ class Game {
     if(!this._runSession) return;
     const summary=this._runSession.finish({outcome,floorReached:this.state.floor,mementos:this.mementos});
     if(!summary) return;
-    if(this._runConsent.rescueOptIn) summary.displayAlias=document.getElementById('displayAlias').value.trim();
-    void this._runRecords.finishRun(summary,{consent:this._runConsent}).then(saved=>{
+    void this._runRecords.finishRun(summary,{enabled:this._runTelemetryEnabled}).then(async saved=>{
+      const pending=saved?false:await this._runRecords.hasPendingRun(summary.clientRunId);
       document.getElementById('endRunRecordStatus').textContent=saved
-        ?'El registro se guardó según tus opciones.'
-        :'No se pudo guardar el registro. El juego terminó con normalidad.';
+        ?'Partida incluida en las estadísticas agregadas.'
+        :pending===true
+          ?'Partida guardada en este dispositivo; se sincronizará cuando la conexión esté disponible.'
+          :'No se pudo guardar la partida. El juego terminó con normalidad.';
     });
   }
   _statLine(){ const names=this.collected.map(i=>MEMENTOS[i].name).join(' · '); return this.mementos?('Recuerdos rescatados ('+this.mementos+'/6): '+names):'No rescataste ningún recuerdo.'; }
@@ -1427,10 +1368,10 @@ class Game {
     this.ammo=0; this.rescueT=-1; this.phoneUsed=false; this.pistolTaken=false; this.callMade=false; this.hidden=null;
     this.mementos=0; this.collected=[]; this.temptation=0; this.lifelines=0; this.mementoCollected=false;
     this._runSession=null;
-    if(this._runConsent.statsOptIn||this._runConsent.rescueOptIn){
+    if(this._runTelemetryEnabled){
       this._runSession=createRunSession();
       const started=this._runSession.start(this.props.difficulty);
-      if(started) void this._runRecords.startRun({...started,consent:this._runConsent});
+      if(started) void this._runRecords.startRun({...started,enabled:this._runTelemetryEnabled});
     }
     this._el.resistNarr.textContent='';
     this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
