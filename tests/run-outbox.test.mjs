@@ -62,7 +62,7 @@ class FakeIndexedDB {
   }
 }
 
-test('run outbox persists an allowlisted copy of a terminal run', async () => {
+test('run outbox persists run data without aliases, identities, or consent flags', async () => {
   assert.equal(typeof runOutbox?.createRunOutbox, 'function', 'outbox factory must be exported');
   const outbox = runOutbox.createRunOutbox({ storageAdapter: new MemoryStorageAdapter() });
   const record = {
@@ -77,8 +77,7 @@ test('run outbox persists an allowlisted copy of a terminal run', async () => {
   assert.deepEqual(await outbox.list(), [{
     clientRunId: record.clientRunId,
     difficulty: 'Normal', outcome: 'rescued', durationMs: 183456,
-    floorReached: 7, mementos: 4, displayAlias: 'Sisalia 7',
-    publishRescue: true, queuedAt: 100,
+    floorReached: 7, mementos: 4, queuedAt: 100,
   }]);
 });
 
@@ -99,17 +98,18 @@ test('enqueue returns only the allowlisted stored copy', async () => {
   ]);
 });
 
-test('outbox preserves per-run telemetry and publication consent for delayed delivery', async () => {
+test('outbox preserves only the run summary for delayed delivery', async () => {
   const outbox = runOutbox.createRunOutbox({ storageAdapter: new MemoryStorageAdapter() });
   const record = {
     ...createProgressRecord('c6b7d9c0-f04c-4e65-8d86-14119608d2f1', 100),
     statsOptIn: true,
     publishRescue: true,
+    displayAlias: 'Sisal 7',
   };
 
   await outbox.enqueue(record);
 
-  assert.deepEqual(await outbox.list(), [record]);
+  assert.deepEqual(await outbox.list(), [createProgressRecord(record.clientRunId, 100)]);
 });
 
 test('native IndexedDB storage replays oldest records and upserts by stable run ID', async () => {

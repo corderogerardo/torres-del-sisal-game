@@ -21,11 +21,6 @@ function toAllowlistedRecord(record) {
     floorReached: record.floorReached,
     mementos: record.mementos,
   };
-  if (typeof record.displayAlias === 'string' && /^[A-Za-z0-9 _-]{1,24}$/.test(record.displayAlias.trim()) && record.displayAlias.trim()) {
-    allowed.displayAlias = record.displayAlias.trim();
-  }
-  if (typeof record.statsOptIn === 'boolean') allowed.statsOptIn = record.statsOptIn;
-  if (typeof record.publishRescue === 'boolean') allowed.publishRescue = record.publishRescue;
   allowed.queuedAt = Number.isSafeInteger(record.queuedAt) && record.queuedAt >= 0 ? record.queuedAt : Date.now();
   return allowed;
 }
@@ -95,7 +90,14 @@ export function createRunOutbox({ indexedDB = globalThis.indexedDB, databaseName
     },
     async list() {
       const records = await storage.list();
-      return records.map(toAllowlistedRecord).sort((a, b) => a.queuedAt - b.queuedAt);
+      const cleanRecords = records.map(toAllowlistedRecord);
+      for (let index = 0; index < records.length; index += 1) {
+        const clean = cleanRecords[index];
+        if (Object.keys(records[index]).some((key) => !Object.prototype.hasOwnProperty.call(clean, key))) {
+          await storage.enqueue(clean);
+        }
+      }
+      return cleanRecords.sort((a, b) => a.queuedAt - b.queuedAt);
     },
     async remove(clientRunId) { return storage.remove(clientRunId); },
     async clear() { return storage.clear(); },
