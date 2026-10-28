@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-const runRecords = await import('../public/run-records.mjs').catch(() => null);
+const runRecords = await import('../public/run-telemetry.mjs').catch(() => null);
 
 test('run session measures a terminal rescue with a monotonic clock and submits it once', () => {
   assert.equal(typeof runRecords?.createRunSession, 'function', 'run session recorder must be exported');

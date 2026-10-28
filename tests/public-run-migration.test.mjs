@@ -11,7 +11,7 @@ function assertMigrationMatches(pattern, description) {
   assert.ok(pattern.test(migration), description);
 }
 
-test('run records enforce owner-scoped RLS and bounded gameplay values', () => {
+test('initial migration defines its historical owner-scoped schema and bounded gameplay values', () => {
   for (const table of ['player_preferences', 'run_records', 'public_rescue_entries']) {
     assertMigrationMatches(
       new RegExp(`alter table public\\.${table} enable row level security`, 'i'),
@@ -39,7 +39,7 @@ test('run records enforce owner-scoped RLS and bounded gameplay values', () => {
   assertMigrationMatches(/before insert or update on public\.run_records/i, 'database timestamp guard must cover terminal inserts and updates');
 });
 
-test('public APIs return only aggregate counts and opted-in rescued-run fields', () => {
+test('initial migration exposes only its historical aggregate and opted-in rescue fields', () => {
   assertMigrationMatches(/function public\.get_run_analytics\(\)/i, 'aggregate RPC must exist');
   assertMigrationMatches(/started_count/i, 'aggregate must count starts');
   assertMigrationMatches(/in_progress_count/i, 'aggregate must count unresolved runs');
@@ -54,7 +54,7 @@ test('public APIs return only aggregate counts and opted-in rescued-run fields',
   assertMigrationMatches(/security definer\s+set search_path = ''/i, 'definer functions must use a fixed empty search path');
 });
 
-test('public grants stay narrow and owners can delete their session-bound data', () => {
+test('initial migration originally granted owner-scoped deletion; the follow-up revokes it', () => {
   assertMigrationMatches(/revoke all on table\s+public\.player_preferences,\s+public\.run_records,\s+public\.public_rescue_entries\s+from public, anon, authenticated/i, 'table defaults must be revoked before least-privilege grants');
   assertMigrationMatches(/revoke all on function public\.get_run_analytics\(\) from public/i, 'aggregate function default grants must be revoked');
   assertMigrationMatches(/grant execute on function public\.get_run_analytics\(\) to anon, authenticated/i, 'only public roles should call aggregate RPC');

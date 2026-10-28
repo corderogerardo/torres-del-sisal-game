@@ -45,12 +45,7 @@
   .records-panel h2,.records-panel h3{color:#A8DADC;font-size:12px;letter-spacing:.8px;text-transform:uppercase}
   .records-choice{display:flex;align-items:flex-start;gap:9px;margin-top:10px;cursor:pointer}
   .records-choice input{flex:0 0 auto;width:17px;height:17px;margin-top:1px;accent-color:#A8DADC}
-  .records-alias{display:grid;gap:5px;margin:10px 0 0 26px}
-  .records-alias input{padding:8px 10px;border:1px solid rgba(168,218,220,.6);border-radius:6px;background:#05070a;color:#F1FAEE;font:inherit;user-select:text;-webkit-user-select:text}
   .records-status{min-height:1.5em;margin-top:10px;color:#A8DADC}
-  .records-list{padding-left:22px;margin-top:6px}
-  .records-list li+li{margin-top:4px}
-  .records-delete{padding:8px 14px;margin-top:10px;font-size:11px;letter-spacing:.8px}
   .records-panel :focus-visible{outline:2px solid #A8DADC;outline-offset:3px}
   .intro-panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px;text-align:left;align-items:start}
   .intro-panels .support-note,.intro-panels .records-panel{margin-top:0;height:100%}
@@ -168,31 +163,19 @@
         <p>Si tú o alguien cercano está en peligro inmediato, busca a una persona de confianza, acude al centro de salud más cercano o contacta con el servicio de emergencias local.</p>
       </section>
       <section id="runRecordsPanel" class="records-panel" aria-labelledby="runRecordsTitle">
-        <h2 id="runRecordsTitle">Registros comunitarios (opcional)</h2>
-        <p>Ambas opciones están apagadas por defecto y el juego funciona sin conexión. Las tablas del juego no guardan direcciones IP, correo, dispositivo ni historias de acciones.</p>
-        <p>Supabase puede procesar la dirección IP y el agente de usuario para autenticación y registros de plataforma. La retención depende de la configuración y el plan del proyecto.</p>
-        <p>Puedes borrar tus registros de juego antes de cerrar esta sesión. Como los tokens no se conservan, después no podrás recuperar ese historial. Las cifras describen sesiones anónimas, no personas, y los resultados se declaran desde el cliente: no se verifican contra trampas.</p>
-        <label class="records-choice" for="statsOptIn">
-          <input type="checkbox" id="statsOptIn">
-          <span>Compartir estadísticas anónimas: partidas iniciadas, rescatadas, saltadas y sin cierre. No publica tu alias.</span>
+        <h2 id="runRecordsTitle">Estadísticas de partidas</h2>
+        <p>Se registran automáticamente estadísticas agregadas de las partidas: inicios, desenlace y duración. No se guarda un nombre de usuario ni un identificador de jugador, y no se muestra el historial individual. Cada corrida usa un identificador aleatorio solo para evitar duplicados; no conecta varias partidas con una misma persona. Las partidas pendientes se conservan en este dispositivo hasta sincronizarse; el juego sigue disponible sin conexión.</p>
+        <p>Las tablas de telemetría del juego no guardan direcciones IP, agente de usuario, correo, dispositivo ni datos de identidad. Supabase puede procesar la dirección IP y el agente de usuario en sus registros de plataforma; su retención depende de la configuración y el plan del proyecto.</p>
+        <p>Las cifras cuentan partidas, no personas únicas. Desactivar la recopilación no borra métricas ya registradas; solo detiene corridas futuras y descarta envíos pendientes en este dispositivo. Los desenlaces son reportados por el cliente y no se verifican contra trampas. Como las partidas no se vinculan a un jugador, no hay borrado individual desde el juego.</p>
+        <label class="records-choice" for="runTelemetryOptOut">
+          <input type="checkbox" id="runTelemetryOptOut">
+          <span>Desactivar el registro automático de estadísticas de partidas.</span>
         </label>
-        <label class="records-choice" for="rescueOptIn">
-          <input type="checkbox" id="rescueOptIn">
-          <span>Publicar un alias y solo tus rescates, con dificultad, duración y recuerdos reunidos.</span>
-        </label>
-        <div id="aliasField" class="records-alias" hidden>
-          <label for="displayAlias">Alias público</label>
-          <input type="text" id="displayAlias" maxlength="24" pattern="[A-Za-z0-9 _-]{1,24}" autocomplete="nickname" aria-describedby="aliasRules">
-          <span id="aliasRules">Hasta 24 caracteres: letras sin acento, números, espacios, guion o guion bajo.</span>
-        </div>
-        <p id="runRecordsStatus" class="records-status" role="status" aria-live="polite" aria-atomic="true">Los registros están desactivados.</p>
+        <p id="runRecordsStatus" class="records-status" role="status" aria-live="polite" aria-atomic="true">Las estadísticas agregadas se registran automáticamente; puedes desactivarlas aquí.</p>
         <div id="runRecordsData" hidden>
-          <h3>Actividad reportada</h3>
+          <h3>Actividad agregada de partidas</h3>
           <p id="runAnalyticsSummary" aria-live="polite"></p>
-          <h3 style="margin-top:10px">Mejores rescates · no verificados</h3>
-          <ol id="publicRunResults" class="records-list" aria-live="polite"></ol>
         </div>
-        <button id="deleteRunRecords" class="btn records-delete" type="button" hidden>Eliminar mis registros de esta sesión</button>
       </section>
       </div>
       <div style="margin-top:22px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap">
@@ -210,18 +193,19 @@
   <div id="end" class="fill hidden" style="align-items:center;justify-content:center;padding:24px;pointer-events:auto;background:linear-gradient(rgba(5,7,10,.8),rgba(5,7,10,.95))">
     <div style="max-width:540px;width:100%;text-align:center;animation:creep .6s ease both">
       <h1 id="endTitle" class="display" style="font-weight:900;font-size:44px;line-height:1.04;letter-spacing:.5px"></h1>
-      <p id="endSub" style="margin-top:18px;font-weight:400;font-size:16px;line-height:1.7;color:rgba(241,250,238,.82)"></p>
-      <div id="endStats" style="margin-top:16px;font-weight:700;font-size:13px;color:rgba(241,250,238,.5);letter-spacing:.5px"></div>
-      <p id="endRunRecordStatus" role="status" aria-live="polite" aria-atomic="true" style="margin-top:10px;min-height:1.5em;color:#A8DADC;font-size:12px"></p>
-      <button id="deleteRunRecordsEnd" class="btn records-delete" type="button" hidden>Eliminar mis registros de esta sesión</button>
-      <button id="restartBtn" class="btn" style="margin-top:26px">Volver a entrar ▸</button>
+       <p id="endSub" style="margin-top:18px;font-weight:400;font-size:16px;line-height:1.7;color:rgba(241,250,238,.82)"></p>
+       <div id="endStats" style="margin-top:16px;font-weight:700;font-size:13px;color:rgba(241,250,238,.5);letter-spacing:.5px"></div>
+       <p id="endRunRecordStatus" role="status" aria-live="polite" aria-atomic="true" style="margin-top:10px;min-height:1.5em;color:#A8DADC;font-size:12px"></p>
+       <button id="restartBtn" class="btn" style="margin-top:26px">Volver a entrar ▸</button>
     </div>
   </div>
 
 <script type="module" data-cfasync="false">
 import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
-import { createOptionalRunClient, createRunSession, isValidDisplayAlias } from './run-records.mjs';
+import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
+import { AUDIO_KINDS } from './audio.mjs';
+import { spotBlocked } from './level.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
@@ -235,6 +219,10 @@ const MEMENTOS = [
   {name:'Un mensaje de voz',        mem:'«Vuelve a casa. Te estamos esperando.»'},
   {name:'El rosario de tu abuela',  mem:'Cuentas gastadas de tanto rezar por ti.'},
 ];
+// Uniform entity dispatch: plan code -> factory method. Unknown codes fall
+// back to _makeSombra, matching the old else-branch.
+const SPAWN_FACTORY={s:'_makeSombra',d:'_makeDuende',y:'_makeSayona',l:'_makeLlorona',b:'_makeSilbon'};
+const RESPAWN_FACTORY={sayona:'_makeSayona',silbon:'_makeSilbon',duende:'_makeDuende'};
 
 class Game {
   constructor(){
@@ -247,8 +235,10 @@ class Game {
     this.ammo = 0; this.rescueT = -1; this.phoneUsed = false; this.pistolTaken = false; this.callMade = false;
     this.hidden = null;
     this.mementos = 0; this.collected = []; this.temptation = 0; this.lifelines = 0; this._narrT = 0;
-    this._runRecords = createOptionalRunClient();
-    this._runConsent = { statsOptIn:false, rescueOptIn:false };
+    this._runRecords = createRunTelemetryClient();
+    this._runTelemetryEnabled=getRunTelemetryEnabled();
+    document.getElementById('runTelemetryOptOut').checked=!this._runTelemetryEnabled;
+    if(!this._runTelemetryEnabled) void this._runRecords.clearPendingRuns();
     this._runSession = null;
     this.state = { phase:'intro', floor:1, timeText:'05:00', timerColor:'#F1FAEE', dread:0, objective:'', banner:'', paused:false, ending:null, batt:100, stam:100, compassRot:0, ammo:0, hiddenView:false, floorName:'', temptation:0, showResist:false };
     this._el = {
@@ -269,6 +259,11 @@ class Game {
     this._wire();
     this._waitThree(0);
     this._sync();
+    if(this._runTelemetryEnabled) requestAnimationFrame(()=>{
+      if(this._runTelemetryEnabled) requestAnimationFrame(()=>{
+        if(this._runTelemetryEnabled) void this._runRecords.flushPendingRuns({enabled:true});
+      });
+    });
   }
 
   setState(patch){ Object.assign(this.state, patch); this._sync(); }
@@ -311,7 +306,7 @@ class Game {
     document.querySelectorAll('.diffbtn').forEach(b=>b.addEventListener('click',()=>{
       document.querySelectorAll('.diffbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on'); this.props.difficulty=b.dataset.diff;
     }));
-    document.getElementById('enterBtn').addEventListener('click',()=>this.start());
+    document.getElementById('enterBtn').addEventListener('click',()=>{ void this._updateRunTelemetryPreferences(); this.start(); });
     document.getElementById('restartBtn').addEventListener('click',()=>this.start());
     this._el.pause.addEventListener('click',()=>this._lock());
     this._kd=(e)=>{ const t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return; this.keys[e.code]=true; if(['KeyW','KeyS','KeyA','KeyD','Space'].includes(e.code)) e.preventDefault(); if(e.code==='KeyF'&&this.state.phase==='playing'&&!this.state.paused){ this.torchOn=!this.torchOn; if(this.torchOn&&this.torchBattery<=0) this.torchOn=false; } if(e.code==='KeyE') this._toggleHide(); if(e.code==='Escape'&&this._fallbackLook&&this.state.phase==='playing') this.setState({paused:true}); };
@@ -321,14 +316,11 @@ class Game {
     document.addEventListener('mousemove',this._mm);
     this._plc=()=>{ if(document.pointerLockElement){ this._hadLock=true; this._fallbackLook=false; if(this.state.phase==='playing') this.setState({paused:false}); } else if(this.state.phase==='playing'&&!this._fallbackLook){ this.setState({paused:true}); } };
     document.addEventListener('pointerlockchange',this._plc);
-    document.addEventListener('visibilitychange',()=>{ const c=this._audioCtx; if(!c) return; if(document.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } });
+    document.addEventListener('visibilitychange',()=>{ const c=this._audioCtx; if(c){ if(document.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } } if(!document.hidden) void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
+    window.addEventListener('online',()=>{ void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
     window.addEventListener('resize',()=>this._onResize());
     this.stage.addEventListener('click',()=>{ if(this.state.phase!=='playing') return; if(this.state.paused){ this._lock(); return; } this._shoot(); });
-    document.getElementById('statsOptIn').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
-    document.getElementById('rescueOptIn').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
-    document.getElementById('displayAlias').addEventListener('change',()=>{ void this._updateRunRecordsPreferences(); });
-    document.getElementById('deleteRunRecords').addEventListener('click',()=>{ void this._deleteRunRecords(); });
-    document.getElementById('deleteRunRecordsEnd').addEventListener('click',()=>{ void this._deleteRunRecords(); });
+    document.getElementById('runTelemetryOptOut').addEventListener('change',()=>{ void this._updateRunTelemetryPreferences(); });
   }
 
   _setRunRecordsStatus(message){ document.getElementById('runRecordsStatus').textContent=message; }
@@ -336,95 +328,51 @@ class Game {
   _clearRunRecords(){
     document.getElementById('runRecordsData').hidden=true;
     document.getElementById('runAnalyticsSummary').textContent='';
-    document.getElementById('publicRunResults').replaceChildren();
   }
 
-  async _updateRunRecordsPreferences(){
-    const statsOptIn=document.getElementById('statsOptIn').checked;
-    const publishRequested=document.getElementById('rescueOptIn').checked;
-    const alias=document.getElementById('displayAlias').value.trim();
-    const aliasValid=isValidDisplayAlias(alias);
-    const rescueOptIn=publishRequested&&aliasValid;
-    const consent={statsOptIn,rescueOptIn};
-    this._runConsent=consent;
-    document.getElementById('aliasField').hidden=!publishRequested;
-    document.getElementById('deleteRunRecords').hidden=true;
-    document.getElementById('deleteRunRecordsEnd').hidden=true;
+  async _updateRunTelemetryPreferences(){
+    const enabled=!document.getElementById('runTelemetryOptOut').checked;
+    this._runTelemetryEnabled=enabled;
+    this._runRecords.setEnabled(enabled);
+    const localPreferenceSaved=setRunTelemetryEnabled(enabled);
 
-    if(!statsOptIn&&!rescueOptIn){
-      await this._runRecords.savePreferences(consent);
+    if(!enabled){
+      await this._runRecords.clearPendingRuns();
       this._clearRunRecords();
-      this._setRunRecordsStatus(publishRequested?'Escribe un alias válido para publicar rescates.':'Los registros están desactivados.');
+      this._setRunRecordsStatus(!localPreferenceSaved
+        ?'No se pudo recordar el cambio; las estadísticas quedan desactivadas solo durante esta sesión.'
+        :'Las estadísticas automáticas están desactivadas.');
       return;
     }
 
-    if(!await this._runRecords.savePreferences(consent)){
-      this._setRunRecordsStatus('No se pudo guardar la preferencia. El juego sigue disponible sin conexión.');
-      return;
-    }
-    document.getElementById('deleteRunRecords').hidden=false;
-    document.getElementById('deleteRunRecordsEnd').hidden=false;
-
-    const data=await this._runRecords.loadPublicData(consent);
+    this._setRunRecordsStatus('Cargando métricas agregadas…');
+    const data=await this._runRecords.loadPublicData();
     this._renderRunRecords(data);
-    this._setRunRecordsStatus(data?.unavailable
-      ?'No se pudieron cargar algunos registros. El juego sigue disponible.'
-      :publishRequested&&!aliasValid
-        ?'Estadísticas activas. Escribe un alias válido para publicar rescates.'
-        :'Registros actualizados. Los rescates del marcador no están verificados.');
+    const status=data?.unavailable
+      ?'Las métricas no están disponibles ahora; el juego sigue funcionando.'
+      :data
+        ?'Las estadísticas agregadas se registran automáticamente; no identifican jugadores.'
+        :'La recopilación está activa. Las partidas se sincronizarán cuando haya configuración y conexión.';
+    this._setRunRecordsStatus(!localPreferenceSaved
+      ?'No se pudo guardar la preferencia local. '+status
+      :status);
   }
 
   _renderRunRecords(data){
     const panel=document.getElementById('runRecordsData');
     const summary=document.getElementById('runAnalyticsSummary');
-    const list=document.getElementById('publicRunResults');
-    list.replaceChildren();
     if(!data){ panel.hidden=true; summary.textContent=''; return; }
     panel.hidden=false;
 
     const counts=data.analytics;
     summary.textContent=counts
-      ? `Inicios: ${counts.started} · En curso o sin cierre: ${counts.inProgress} · Rescatados: ${counts.rescued} · Saltos: ${counts.jumped} · Sesiones anónimas: ${counts.anonymousSessions}`
-      :'Las estadísticas no están activadas para esta sesión.';
-
-    for(const difficulty of ['Piadoso','Normal','Pesadilla']){
-      const entries=data.rescues.filter(entry=>entry.difficulty===difficulty);
-      if(!entries.length){
-        const empty=document.createElement('li');
-        empty.textContent=`${difficulty}: todavía no hay rescates publicados.`;
-        list.appendChild(empty);
-        continue;
-      }
-      for(const entry of entries){
-        const item=document.createElement('li');
-        item.textContent=`${difficulty} · ${entry.displayAlias} · ${this._formatRunDuration(entry.durationMs)} · ${entry.mementos}/6 recuerdos`;
-        list.appendChild(item);
-      }
-    }
+      ? `Partidas: ${counts.started} · En curso: ${counts.inProgress} · Rescatados: ${counts.rescued} · Saltos: ${counts.jumped} · Duración promedio: ${this._formatRunDuration(counts.averageDurationMs)} · P50: ${this._formatRunDuration(counts.p50DurationMs)} · P95: ${this._formatRunDuration(counts.p95DurationMs)}`
+      :'No hay métricas agregadas disponibles todavía.';
   }
 
   _formatRunDuration(durationMs){
     const totalSeconds=durationMs/1000, minutes=Math.floor(totalSeconds/60), seconds=(totalSeconds%60).toFixed(1).padStart(4,'0');
     return `${minutes}:${seconds}`;
-  }
-
-  async _deleteRunRecords(){
-    if(!window.confirm('¿Eliminar tus partidas privadas y rescates publicados de esta sesión? No podrás recuperar este historial después de cerrar la página.')) return;
-    this._setRunRecordsStatus('Eliminando tus registros…');
-    if(!await this._runRecords.deleteMyRunData()){
-      this._setRunRecordsStatus('No se pudieron eliminar los registros. El juego sigue disponible.');
-      return;
-    }
-    document.getElementById('statsOptIn').checked=false;
-    document.getElementById('rescueOptIn').checked=false;
-    document.getElementById('displayAlias').value='';
-    document.getElementById('aliasField').hidden=true;
-    document.getElementById('deleteRunRecords').hidden=true;
-    document.getElementById('deleteRunRecordsEnd').hidden=true;
-    this._runConsent={statsOptIn:false,rescueOptIn:false};
-    this._runSession=null;
-    this._clearRunRecords();
-    this._setRunRecordsStatus('Se eliminaron tus registros de esta sesión.');
   }
 
   _waitThree(n){ if(window.THREE){ this._initThree(); return; } if(n>160) return; setTimeout(()=>this._waitThree(n+1),50); }
@@ -556,11 +504,7 @@ class Game {
     if(em<1&&plan.length>2) plan=plan.slice(0,plan.length-1);
     if(em>1.2) plan=plan.concat(['s']);
     for(const t of plan){ const [x,z]=spot();
-      if(t==='s') this.entities.push(this._makeSombra(x,z,em));
-      else if(t==='d') this.entities.push(this._makeDuende(x,z,em));
-      else if(t==='y') this.entities.push(this._makeSayona(x,z,em));
-      else if(t==='l') this.entities.push(this._makeLlorona(x,z,em));
-      else this.entities.push(this._makeSilbon(x,z,em));
+      this.entities.push(this[SPAWN_FACTORY[t]||'_makeSilbon'](x,z,em));
     }
   }
   _themes(){ return [
@@ -699,7 +643,7 @@ class Game {
       e.grace=Math.max(0,e.grace-dt);
       if(e.delay!==undefined&&e.delay>0){ e.delay-=dt; continue; }
       if(!e.group.visible) e.group.visible=true;
-      if(e.type==='sayona'&&!e.announced){ e.announced=true; this._screamSfx(); this._banner('LA SAYONA TE HA VISTO'); this._dread=Math.min(100,this._dread+8); }
+      if(e.type==='sayona'&&!e.announced){ e.announced=true; this.play('scream'); this._banner('LA SAYONA TE HA VISTO'); this._dread=Math.min(100,this._dread+8); }
       if(dist<this._nearest) this._nearest=dist;
       const toEx=(e.pos.x-cam.position.x)/(dist||1), toEz=(e.pos.z-cam.position.z)/(dist||1);
       const lit=torch&&dist<15&&(fdir.x*toEx+fdir.z*toEz)>.86;
@@ -712,23 +656,23 @@ class Game {
         else seekLost(e.speed.hunt*.75);
         if(lit) spd=0;
       } else if(e.type==='sayona'){
-        if(e.calm&&dist<7&&canSee){ e.calm=false; this._screamSfx(); this._banner('LA SAYONA MUESTRA SU VERDADERO ROSTRO'); this._dread=Math.min(100,this._dread+10); }
+        if(e.calm&&dist<7&&canSee){ e.calm=false; this.play('scream'); this._banner('LA SAYONA MUESTRA SU VERDADERO ROSTRO'); this._dread=Math.min(100,this._dread+10); }
         if(canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.calm?e.speed.hunt*.55:e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z); }
         else seekLost(e.speed.hunt*.6);
       } else if(e.type==='llorona'){
-        e.sobT-=dt; if(e.sobT<=0){ e.sobT=5+Math.random()*3; this._sobSfx(dist); }
+        e.sobT-=dt; if(e.sobT<=0){ e.sobT=5+Math.random()*3; this.play('sob', { dist }); }
         if(canSee&&dist<e.senseRange&&e.grace<=0){
-          if(!e.wailed){ e.wailed=true; this._screamSfx(); this._banner('LA LLORONA TE HA VISTO'); }
+          if(!e.wailed){ e.wailed=true; this.play('scream'); this._banner('LA LLORONA TE HA VISTO'); }
           e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z);
         } else if(e.state==='hunt'&&canSee&&dist<e.senseRange*1.8){ tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; }
         else { e.state='patrol'; e.wailed=false; if(!e.waypoint||Math.hypot(e.pos.x-e.waypoint.x,e.pos.z-e.waypoint.z)<.7) e.waypoint=new T.Vector3((Math.random()-.5)*this.roomHalf*1.4,0,(Math.random()-.5)*this.roomHalf*1.4); tx=e.waypoint.x; tz=e.waypoint.z; spd=e.speed.patrol; }
       } else if(e.type==='silbon'){
         if(canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z); }
         else seekLost(e.speed.hunt*.7);
-        e.whistleT-=dt; if(e.whistleT<=0){ e.whistleT=4.6; if(dist<5) this._bonesSfx(); else this._whistleSfx(dist); }
+        e.whistleT-=dt; if(e.whistleT<=0){ e.whistleT=4.6; if(dist<5) this.play('bones'); else this.play('whistle', { dist }); }
       } else {
         if(e.state==='flee'){ e.fleeT-=dt; tx=e.pos.x-(cam.position.x-e.pos.x); tz=e.pos.z-(cam.position.z-e.pos.z); spd=e.speed.hunt; if(e.fleeT<=0){ e.state='patrol'; e.waypoint=null; } }
-        else if(dist<e.senseRange&&e.grace<=0&&canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; if(!e.gigT||now>e.gigT){ e.gigT=now+2600; this._giggleSfx(dist); } }
+        else if(dist<e.senseRange&&e.grace<=0&&canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; if(!e.gigT||now>e.gigT){ e.gigT=now+2600; this.play('giggle', { dist }); } }
         else { if(!e.waypoint||Math.hypot(e.pos.x-e.waypoint.x,e.pos.z-e.waypoint.z)<.7) e.waypoint=new T.Vector3((Math.random()-.5)*this.roomHalf*1.4,0,(Math.random()-.5)*this.roomHalf*1.4); tx=e.waypoint.x; tz=e.waypoint.z; spd=e.speed.patrol; }
       }
       const mx=tx-e.pos.x, mz=tz-e.pos.z, ml=Math.hypot(mx,mz)||1;
@@ -742,7 +686,7 @@ class Game {
       if(e.eyes){ e.eyes[0].material.emissiveIntensity = lit?.7:hunting?2.6+Math.sin(now*.018)*.9:1.5; }
       if(dist<e.catchRadius&&e.grace<=0&&canSee){
         if(e.type==='duende'&&!this.hidden){
-          this._dread=Math.min(100,this._dread+14); this._giggleSfx(1); e.state='flee'; e.fleeT=2.6; e.grace=1.2;
+          this._dread=Math.min(100,this._dread+14); this.play('giggle', { dist: 1 }); e.state='flee'; e.fleeT=2.6; e.grace=1.2;
           const kx=dx/(dist||1), kz=dz/(dist||1), kl=this.roomHalf-.6;
           cam.position.x=Math.max(-kl,Math.min(kl,cam.position.x+kx*1.4)); cam.position.z=Math.max(-kl,Math.min(kl,cam.position.z+kz*1.4));
           this._banner('¡LOS DUENDES!');
@@ -753,7 +697,7 @@ class Game {
   entityCatch(e){
     if(this.state.phase!=='playing') return;
     const B={sombra:'UNA SOMBRA TE POSEYÓ',sayona:'LA SAYONA TE ARRASTRÓ',silbon:'EL SILBÓN TE ECHÓ AL SACO',llorona:'LA LLORONA TE ACUNÓ'}[e.type]||'LA TORRE TE ARRASTRÓ';
-    this._despair(); this.ascendForced(B);
+    this.play('despair'); this.ascendForced(B);
   }
 
   _spawnCritters(rng){
@@ -788,7 +732,7 @@ class Game {
       const dx=c.pos.x-cam.position.x, dz=c.pos.z-cam.position.z, d=Math.hypot(dx,dz);
       let tx,tz,spd=c.spd;
       if(d<c.fear){ tx=c.pos.x+dx/(d||1)*4; tz=c.pos.z+dz/(d||1)*4; spd=c.spd*2.4;
-        if(c.kind==='rat'&&now>c.sq){ c.sq=now+3200+Math.random()*4200; this._squeakSfx(d); this._dread=Math.min(100,this._dread+1.2); } }
+        if(c.kind==='rat'&&now>c.sq){ c.sq=now+3200+Math.random()*4200; this.play('squeak', { dist: d }); this._dread=Math.min(100,this._dread+1.2); } }
       else { if(!c.wp||Math.hypot(c.pos.x-c.wp.x,c.pos.z-c.wp.z)<.4){ c.wp=new T.Vector3((Math.random()-.5)*this.roomHalf*1.7,0,(Math.random()-.5)*this.roomHalf*1.7); c.pause=Math.random()<.4?now+600+Math.random()*2000:0; }
         if(c.pause&&now<c.pause) spd=0; tx=c.wp.x; tz=c.wp.z; }
       const mx=tx-c.pos.x, mz=tz-c.pos.z, ml=Math.hypot(mx,mz)||1;
@@ -801,13 +745,8 @@ class Game {
   }
 
   _spotBlocked(x,z,pad){
-    pad=pad===undefined?0.9:pad;
-    const lim=this.roomHalf-1.1;
-    if(Math.abs(x)>lim||Math.abs(z)>lim) return true;
-    for(const c of this.colliders||[]){
-      if(x>c.x0-pad&&x<c.x1+pad&&z>c.z0-pad&&z<c.z1+pad) return true;
-    }
-    return false;
+    if(!Number.isFinite(x)||!Number.isFinite(z)) return false;
+    return spotBlocked(x, z, { boxes: this.colliders, limit: this.roomHalf-1.1, pad });
   }
 
   // Punto libre aleatorio sin colisionar: evita colisionadores (muros, pilares,
@@ -1182,7 +1121,7 @@ class Game {
     dr+=(df.creep+timeFactor*.75)*dt;
     this._dread=Math.max(0,Math.min(100,dr));
     this._updateEntities(dt); this._updateCritters(dt); this._tickRespawn(dt); this._updateBola(dt);
-    if(this._dread>=70&&!this._carreton){ this._carreton=true; this._hoovesSfx(); this._banner('OYES UN CARRETÓN EN LA CALLE'); }
+    if(this._dread>=70&&!this._carreton){ this._carreton=true; this.play('hooves'); this._banner('OYES UN CARRETÓN EN LA CALLE'); }
     if(!this.wardCollected&&this.wardPos&&cam.position.distanceTo(this.wardPos)<1.7) this.collectWard();
     if(!this.pistolTaken&&this.pistolPos&&cam.position.distanceTo(this.pistolPos)<1.6) this.pickupPistol();
     if(this.mementoPos&&!this.mementoCollected&&cam.position.distanceTo(this.mementoPos)<1.7) this.collectMemento();
@@ -1208,7 +1147,7 @@ class Game {
     if(this.temptation>50&&this._narrT<=0&&this.collected.length){ this._narrT=4.5; const idx=this.collected[Math.floor(Math.random()*this.collected.length)]; this._el.resistNarr.textContent=MEMENTOS[idx].mem; }
     else if(this._narrT<=0){ this._el.resistNarr.textContent = this.mementos?'' : 'No trajiste nada a qué aferrarte.'; }
     // lifeline auto-catch
-    if(this.temptation>=92&&this.lifelines>0){ this.lifelines--; this.temptation=52; const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0]; this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE'); this._chime(); }
+    if(this.temptation>=92&&this.lifelines>0){ this.lifelines--; this.temptation=52; const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0]; this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE'); this.play('chime'); }
     if(this.temptation>=100) return this.jumpEnding();
     if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
   }
@@ -1216,19 +1155,19 @@ class Game {
   collectWard(){
     this.wardCollected=true; this._dread=Math.max(0,this._dread-60); this.timeLeft=Math.min(this.diff().time,this.timeLeft+120);
     if(this.wardGroup) this.wardGroup.visible=false;
-    this._banner('AMULETO · LA POSESIÓN RETROCEDE'); this._chime();
+    this._banner('AMULETO · LA POSESIÓN RETROCEDE'); this.play('chime');
   }
   pickupPistol(){
     this.pistolTaken=true; if(this.pistolGroup) this.pistolGroup.visible=false;
     this.ammo=Math.min(8,this.ammo+4); this.setState({ammo:this.ammo});
-    this._banner('AGUA BENDITA · +4 CARGAS'); this._chime();
+    this._banner('AGUA BENDITA · +4 CARGAS'); this.play('chime');
   }
   collectMemento(){
     this.mementoCollected=true; if(this.mementoGroup) this.mementoGroup.visible=false;
     this.collected.push(this.mementoIdx); this.mementos=this.collected.length;
     this._dread=Math.max(0,this._dread-10);
     const m=MEMENTOS[this.mementoIdx];
-    this._banner(m.name.toUpperCase()); this._chime();
+    this._banner(m.name.toUpperCase()); this.play('chime');
     this._el.resistNarr.textContent=m.mem;
     this.setState({});
   }
@@ -1237,7 +1176,7 @@ class Game {
     if(this.phoneLed) this.phoneLed.material.emissiveIntensity=5;
     this.rescueT=this.diff().rescue;
     this._banner('LLAMADA CONECTADA · AGUANTA HASTA QUE LLEGUEN');
-    this._ringSfx();
+    this.play('ring');
   }
   _aimTarget(){
     if(!this.entities||!this.entities.length) return null;
@@ -1254,7 +1193,7 @@ class Game {
   _shoot(){
     if(this.ammo<=0||!this.entities) return;
     const T=window.THREE, cam=this.camera, fdir=this._fwd.set(0,0,-1).applyEuler(cam.rotation);
-    this.ammo--; this.setState({ammo:this.ammo}); this._splashSfx();
+    this.ammo--; this.setState({ammo:this.ammo}); this.play('splash');
     let best=null,bs=1e9;
     for(const e of this.entities){
       const dx=e.pos.x-cam.position.x, dz=e.pos.z-cam.position.z, d=Math.hypot(dx,dz);
@@ -1265,7 +1204,7 @@ class Game {
       this.floorGroup.remove(best.group); this._disposeGroup(best.group);
       this.entities=this.entities.filter(x=>x!==best);
       this._dread=Math.max(0,this._dread-10);
-      this._banner('¡DISUELTO EN AGUA BENDITA!'); this._vanishSfx();
+      this._banner('¡DISUELTO EN AGUA BENDITA!'); this.play('vanish');
       this._respawnQ=this._respawnQ||[];
       if(!this._respawnQ.length) this._respawnT=9+Math.random()*8;
       this._respawnQ.push(best.type);
@@ -1279,15 +1218,15 @@ class Game {
     const t=this._respawnQ.shift(), em=this.diff().pull, cam=this.camera;
     let x,z,gd=0;
     do{ x=(Math.random()-.5)*this.roomHalf*1.6; z=(Math.random()-.5)*this.roomHalf*1.6; gd++; }while(gd<30&&Math.hypot(x-cam.position.x,z-cam.position.z)<9);
-    const e=t==='sayona'?this._makeSayona(x,z,em):t==='silbon'?this._makeSilbon(x,z,em):t==='duende'?this._makeDuende(x,z,em):this._makeSombra(x,z,em);
+    const e=t==='sayona'||t==='silbon'||t==='duende'?this[RESPAWN_FACTORY[t]](x,z,em):this._makeSombra(x,z,em);
     if(e.delay!==undefined) e.delay=1.5;
     this.entities.push(e);
-    this._banner('ALGO REGRESÓ'); this._scare();
+    this._banner('ALGO REGRESÓ'); this.play('scare');
   }
   ascendForced(cause){
     if(this._ascending||this.state.phase!=='playing') return;
     if(this.state.floor>=7) return this.jumpEnding();
-    this._ascending=true; this._ascendSfx(); this._scare();
+    this._ascending=true; this.play('ascend'); this.play('scare');
     this.rescueT=-1;
     const nf=this.state.floor+1;
     this._dread=18;
@@ -1300,7 +1239,7 @@ class Game {
   }
   jumpEnding(){
     if(this.state.phase!=='playing') return;
-    this._despair(); if(document.pointerLockElement) document.exitPointerLock();
+    this.play('despair'); if(document.pointerLockElement) document.exitPointerLock();
     this._recordTerminalRun('jumped');
     const sub=this.callMade
       ? 'Diste el paso. El rescate llegó a la azotea justo a tiempo para ver caer un cuerpo más. Las Torres del Sisal cobraron lo suyo.'
@@ -1308,7 +1247,7 @@ class Game {
     this.setState({phase:'end',paused:false,ending:{bad:true,title:'SALTASTE',sub,stats:this._statLine()}});
   }
   rescuedEnding(){
-    this._release(); if(document.pointerLockElement) document.exitPointerLock();
+    this.play('release'); if(document.pointerLockElement) document.exitPointerLock();
     this._recordTerminalRun('rescued');
     this.setState({phase:'end',paused:false,ending:{bad:false,title:'RESCATADO',
       sub:'Te arrancaron del borde con la posesión aún gritando dentro. Bajaste con vida — el primero en años. Los recuerdos que juntaste fueron lo único que te mantuvo de este lado del borde.',
@@ -1318,14 +1257,38 @@ class Game {
     if(!this._runSession) return;
     const summary=this._runSession.finish({outcome,floorReached:this.state.floor,mementos:this.mementos});
     if(!summary) return;
-    if(this._runConsent.rescueOptIn) summary.displayAlias=document.getElementById('displayAlias').value.trim();
-    void this._runRecords.finishRun(summary,{consent:this._runConsent}).then(saved=>{
+    void this._runRecords.finishRun(summary,{enabled:this._runTelemetryEnabled}).then(async saved=>{
+      const pending=saved?false:await this._runRecords.hasPendingRun(summary.clientRunId);
       document.getElementById('endRunRecordStatus').textContent=saved
-        ?'El registro se guardó según tus opciones.'
-        :'No se pudo guardar el registro. El juego terminó con normalidad.';
+        ?'Partida incluida en las estadísticas agregadas.'
+        :pending===true
+          ?'Partida guardada en este dispositivo; se sincronizará cuando la conexión esté disponible.'
+          :'No se pudo guardar la partida. El juego terminó con normalidad.';
     });
   }
   _statLine(){ const names=this.collected.map(i=>MEMENTOS[i].name).join(' · '); return this.mementos?('Recuerdos rescatados ('+this.mementos+'/6): '+names):'No rescataste ningún recuerdo.'; }
+
+  play(kind, { dist = 1 } = {}) {
+    if (!AUDIO_KINDS.has(kind)) return false;
+    switch (kind) {
+      case 'scream': this._screamSfx(); return true;
+      case 'giggle': this._giggleSfx(dist); return true;
+      case 'whistle': this._whistleSfx(dist); return true;
+      case 'bones': this._bonesSfx(); return true;
+      case 'sob': this._sobSfx(dist); return true;
+      case 'hooves': this._hoovesSfx(); return true;
+      case 'scare': this._scare(); return true;
+      case 'squeak': this._squeakSfx(dist); return true;
+      case 'ring': this._ringSfx(); return true;
+      case 'splash': this._splashSfx(); return true;
+      case 'vanish': this._vanishSfx(); return true;
+      case 'chime': this._chime(); return true;
+      case 'ascend': this._ascendSfx(); return true;
+      case 'despair': this._despair(); return true;
+      case 'release': this._release(); return true;
+      default: return false;
+    }
+  }
 
   // ---------- audio ----------
   _screamSfx(){ const ctx=this._audioCtx; if(!ctx||!this._master) return; const t=ctx.currentTime;
@@ -1405,10 +1368,10 @@ class Game {
     this.ammo=0; this.rescueT=-1; this.phoneUsed=false; this.pistolTaken=false; this.callMade=false; this.hidden=null;
     this.mementos=0; this.collected=[]; this.temptation=0; this.lifelines=0; this.mementoCollected=false;
     this._runSession=null;
-    if(this._runConsent.statsOptIn||this._runConsent.rescueOptIn){
+    if(this._runTelemetryEnabled){
       this._runSession=createRunSession();
       const started=this._runSession.start(this.props.difficulty);
-      if(started) void this._runRecords.startRun({...started,consent:this._runConsent});
+      if(started) void this._runRecords.startRun({...started,enabled:this._runTelemetryEnabled});
     }
     this._el.resistNarr.textContent='';
     this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
