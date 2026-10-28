@@ -2,7 +2,7 @@
 
 A first-person horror game set in the cursed *Torres del Sisal*, steeped in the folklore of the Venezuelan *llano*. You wake up inside the tower **already possessed**. The tower's only law is *siempre hacia arriba* — always upward: every time a ghost catches you, or the possession completes, you wake one floor higher. On each floor you can recover a **memento** of who you used to be. At the top waits the rooftop — *el trampolín de la muerte*. Find the phone, make the call, then **resist the temptation to jump** until rescue arrives. The mementos you gathered are the only thing keeping you on this side of the ledge.
 
-**▶ Play: [torresdelsisal.noofficelocation.com](https://torresdelsisal.noofficelocation.com)**
+**▶ Play: [torres-del-sisal.noofficelocation.com](https://torres-del-sisal.noofficelocation.com)**
 
 ## How to play
 
