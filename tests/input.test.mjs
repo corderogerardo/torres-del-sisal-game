@@ -391,3 +391,17 @@ test('resetLook clears yaw and pitch without clearing keys or cursor', () => {
   assert.equal(after.keys.KeyW, true);
   assert.deepEqual(after.cursor, { x: 3, y: 4 });
 });
+
+test('setLook writes clamped yaw and pitch for fallback steering', () => {
+  const { input } = createHarness();
+
+  input.setLook(1.25, -4);
+  let state = input.getState();
+  assert.equal(state.yaw, 1.25);
+  assert.equal(state.pitch, -1.2);
+
+  input.setLook(Number.NaN, 2);
+  state = input.getState();
+  assert.equal(state.yaw, 1.25);
+  assert.equal(state.pitch, 1.2);
+});

@@ -23,7 +23,7 @@ Objective: Build the modular engine spine with separated responsibilities, prese
 
 ## Engine tasks
 - T5 (S5, route: delegated writer, status: module completed, wiring pending, commit: parent): `public/run-state.mjs` 37/37 tests; pure rules for dread, time, stamina, battery, temptation, lifeline, forced ascension, rescue and endings. Integration into `_game`/`_rooftop` remains.
-- T6 (S6, route: delegated writer, status: module completed, wiring pending, commit: parent): `public/input.mjs` 13/13 tests; injected DOM adapter for keys, look, pointer lock, visibility and fallback look. Integration into `_wire`/`_frame` remains.
+- T6 (S6, route: delegated writer + parent-inline wiring, status: completed, evidence: `tests/input.test.mjs` 14/14, full suite 173/173 and headless Chrome `?test` 65/65; commit: parent): input adapter wired through `_wire`/`_frame`, including look sync, pointer-lock pause and fallback look.
 - T7 (S7, route: delegated writer, status: completed, evidence: `tests/hud.test.mjs` 17/17 and headless Chrome `?test` 65/65; Risk: item 6): full HUD view model wired through `_sync`.
 - T8 (S8, route: delegated writer, status: completed, evidence: `tests/engine-loop.test.mjs` 14/14 and headless Chrome `?test` 65/65, commit: parent): injectable RAF loop wired through `_initThree`.
 
@@ -52,3 +52,4 @@ Objective: Build the modular engine spine with separated responsibilities, prese
 - L10 (2026-10-29): Started `refactor/architecture-solid-spine` from `origin/main` at `02fb41c` after PR #4 merged. Parallel writers receive disjoint module/test surfaces; parent owns `public/index.html`, shared fitness tests, docs, integration and git. Each writer runs focused tests only; parent runs the seam check and full suite.
 - L11 (2026-10-29): PR #4 merged as `02fb41c`; Manguanguas is now on `main`. Existing `.atl/` changes are pre-existing and must not be staged.
 - L12 (2026-10-29): Four parallel writers completed disjoint modules: run-state 37/37, input 13/13, HUD 17/17, engine-loop 14/14. Parent wired HUD and loop into `public/index.html`; full Node suite 172/172. Headless Chrome with SwiftShader ran `/?test` → 65/65 and 0.19 ms/frame. Run-state and input modules are tested but not yet wired; their integration remains the next slice.
+- L13 (2026-10-29): Wired the input adapter into `Game`. `_wire` now delegates keys/mouse/pointer lock/visibility to `createInputController`; `_frame` synchronizes look, cursor and lock state, preserves pointer-lock pause and fallback steering, and writes fallback deltas back with `setLook`. `tests/input.test.mjs` 14/14, full suite 173/173, headless Chrome `?test` 65/65. Run-state wiring still pending.

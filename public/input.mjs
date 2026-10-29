@@ -111,6 +111,13 @@ export function createInputController({
     fallbackLook = Boolean(enabled);
   }
 
+  function setLook(nextYaw, nextPitch) {
+    yaw = Number.isFinite(nextYaw) ? nextYaw : yaw;
+    pitch = Number.isFinite(nextPitch)
+      ? Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, nextPitch))
+      : pitch;
+  }
+
   function resetLook() {
     yaw = 0;
     pitch = 0;
@@ -122,6 +129,7 @@ export function createInputController({
     getState,
     setSensitivity,
     setFallbackLook,
+    setLook,
     resetLook,
   };
 }

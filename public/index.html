@@ -208,6 +208,7 @@ import { AUDIO_KINDS } from './audio.mjs';
 import { spotBlocked } from './level.mjs';
 import { createHud } from './hud.mjs';
 import { createGameLoop } from './engine-loop.mjs';
+import { createInputController } from './input.mjs';
 import { createBestiary, createBestiaryMeshFactory } from './bestiary.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
@@ -259,6 +260,14 @@ class Game {
       endTitle:document.getElementById('endTitle'), endSub:document.getElementById('endSub'), endStats:document.getElementById('endStats'),
     };
     this.hud = createHud({ el: this._el });
+    this.input = createInputController({
+      target: window,
+      document,
+      sensitivity: this.props.mouseSensitivity,
+      isActive: () => this.state.phase === 'playing' && !this.state.paused,
+      onAction: (action) => this._onInputAction(action),
+    });
+    this._wasLocked = false;
     this._wire();
     this._waitThree(0);
     this._sync();
@@ -304,18 +313,27 @@ class Game {
     document.getElementById('enterBtn').addEventListener('click',()=>{ void this._updateRunTelemetryPreferences(); this.start(); });
     document.getElementById('restartBtn').addEventListener('click',()=>this.start());
     this._el.pause.addEventListener('click',()=>this._lock());
-    this._kd=(e)=>{ const t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return; this.keys[e.code]=true; if(['KeyW','KeyS','KeyA','KeyD','Space'].includes(e.code)) e.preventDefault(); if(e.code==='KeyF'&&this.state.phase==='playing'&&!this.state.paused){ this.torchOn=!this.torchOn; if(this.torchOn&&this.torchBattery<=0) this.torchOn=false; } if(e.code==='KeyE') this._toggleHide(); if(e.code==='Escape'&&this._fallbackLook&&this.state.phase==='playing') this.setState({paused:true}); };
-    this._ku=(e)=>{ const t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return; this.keys[e.code]=false; };
-    window.addEventListener('keydown',this._kd); window.addEventListener('keyup',this._ku);
-    this._mm=(e)=>{ this._cursor={x:e.clientX,y:e.clientY}; if((document.pointerLockElement||this._fallbackLook)&&this.state.phase==='playing'&&!this.state.paused){ const s=(this.props.mouseSensitivity||1)*.0022; this.yaw-=e.movementX*s; this.pitch-=e.movementY*s; this.pitch=Math.max(-1.2,Math.min(1.2,this.pitch)); } };
-    document.addEventListener('mousemove',this._mm);
-    this._plc=()=>{ if(document.pointerLockElement){ this._hadLock=true; this._fallbackLook=false; if(this.state.phase==='playing') this.setState({paused:false}); } else if(this.state.phase==='playing'&&!this._fallbackLook){ this.setState({paused:true}); } };
-    document.addEventListener('pointerlockchange',this._plc);
-    document.addEventListener('visibilitychange',()=>{ const c=this._audioCtx; if(c){ if(document.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } } if(!document.hidden) void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
+    this.input.bind();
     window.addEventListener('online',()=>{ void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
     window.addEventListener('resize',()=>this._onResize());
     this.stage.addEventListener('click',()=>{ if(this.state.phase!=='playing') return; if(this.state.paused){ this._lock(); return; } this._shoot(); });
     document.getElementById('runTelemetryOptOut').addEventListener('change',()=>{ void this._updateRunTelemetryPreferences(); });
+  }
+
+  _onInputAction(action){
+    if(!action) return;
+    if(action.type==='torchToggle' && this.state.phase==='playing' && !this.state.paused){
+      this.torchOn=!this.torchOn;
+      if(this.torchOn&&this.torchBattery<=0) this.torchOn=false;
+    } else if(action.type==='hideToggle'){
+      this._toggleHide();
+    } else if(action.type==='pause' && this._fallbackLook && this.state.phase==='playing'){
+      this.setState({paused:true});
+    } else if(action.type==='visibility'){
+      const c=this._audioCtx;
+      if(c){ if(action.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } }
+      if(!action.hidden) void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled});
+    }
   }
 
   _setRunRecordsStatus(message){ document.getElementById('runRecordsStatus').textContent=message; }
@@ -823,11 +841,25 @@ class Game {
     // rooftop finale init
     if(roof){ this.temptation=0; this.lifelines=this.mementos; }
     this.camera.position.set(0,1.7,-W/2+3); this.yaw=0; this.pitch=0;
+    this.input?.resetLook();
   }
 
   _frame(dt=.016, now=performance.now()){
     if(!this.renderer) return;
     const T=window.THREE, cam=this.camera, ph=this.state.phase;
+    const inputState=this.input.getState();
+    this.keys=inputState.keys;
+    this._cursor=inputState.cursor;
+    this._fallbackLook=inputState.fallbackLook;
+    this.yaw=inputState.yaw;
+    this.pitch=inputState.pitch;
+    if(inputState.pointerLocked){
+      this._hadLock=true; this._fallbackLook=false;
+      if(ph==='playing'&&this.state.paused) this.setState({paused:false});
+    } else if(this._wasLocked && ph==='playing' && !this._fallbackLook && !this.state.paused){
+      this.setState({paused:true});
+    }
+    this._wasLocked=inputState.pointerLocked;
     if(this._metrics){
       if(this._metricsLastFrameTime) this._metrics.record(now-this._metricsLastFrameTime,this.renderer.info);
       this._metricsLastFrameTime=now;
@@ -840,6 +872,7 @@ class Game {
       if(Math.abs(ny)>.72) this.pitch-=Math.sign(ny)*((Math.abs(ny)-.72)/.28)*dt*1.1;
       this.pitch=Math.max(-1.2,Math.min(1.2,this.pitch));
     }
+    this.input.setLook(this.yaw,this.pitch);
     if(ph==='playing'&&!this.state.paused) this._game(dt);
     else if(ph!=='end'){ this.yaw+=dt*.12; cam.position.set(Math.sin(performance.now()*.0003)*1.5,1.9,-3); cam.rotation.set(-.08,this.yaw,0,'YXZ'); }
     if(this._spectral) this._spectral.time.value=now*.001;
@@ -1196,7 +1229,7 @@ class Game {
   _banner(t){ this.setState({banner:t}); clearTimeout(this._bt); this._bt=setTimeout(()=>this.setState({banner:''}),2300); }
   _lock(){
     const el=this.stage;
-    const fallback=()=>{ this._fallbackLook=true; if(this.state.phase==='playing') this.setState({paused:false}); };
+    const fallback=()=>{ this._fallbackLook=true; this.input?.setFallbackLook(true); if(this.state.phase==='playing') this.setState({paused:false}); };
     if(!el||!el.requestPointerLock){ fallback(); return; }
     try{ const p=el.requestPointerLock(); if(p&&p.catch) p.catch(fallback); }catch(err){ fallback(); }
     clearTimeout(this._lockT);
