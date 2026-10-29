@@ -7,6 +7,11 @@ export const LEVEL_LAYOUTS = Object.freeze(new Set(['room']));
 const DEFAULT_PAD = 0.9;
 const DEFAULT_PICKUP_RADIUS = 1.6;
 
+// Free-spot search constants, lifted verbatim from the old Game._findFreeSpot.
+const SPOT_AREA_WIDTH = 38;
+const RELAXED_SPAWN_DIST = 3;
+const FALLBACK_SPAN = 8;
+
 function isFiniteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value);
 }
@@ -41,6 +46,61 @@ export function spotBlocked(x, z, blocked = {}) {
     }
   }
   return false;
+}
+
+// The old Game._spotBlocked treated non-finite coordinates as free; keep that
+// contract so the search sequence is unchanged for a misbehaving rng.
+function blockedAt(x, z, colliders, limit, pad) {
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
+  return spotBlocked(x, z, { boxes: colliders, limit, pad });
+}
+
+// Deterministic free-spot search: two rng calls per try, in x-then-z order.
+// Does not register the result; the caller owns the placed list.
+export function findFreeSpot({
+  rng,
+  colliders = [],
+  placed = [],
+  roomHalf = 19,
+  spawn = { x: 0, z: -16 },
+  area = 0.78,
+  minDist = 4,
+  spawnDist = 4.5,
+  pad = 0.9,
+  tries = 150,
+  relaxedTries = 60,
+  limit = roomHalf - 1.1,
+} = {}) {
+  if (typeof rng !== 'function') {
+    throw new TypeError('findFreeSpot requires an rng function');
+  }
+  const sx = spawn.x;
+  const sz = spawn.z;
+
+  for (let i = 0; i < tries; i++) {
+    const x = (rng() - 0.5) * SPOT_AREA_WIDTH * area;
+    const z = (rng() - 0.5) * SPOT_AREA_WIDTH * area;
+    if (Math.hypot(x - sx, z - sz) < spawnDist) continue;
+    if (blockedAt(x, z, colliders, limit, pad)) continue;
+    let ok = true;
+    for (const entry of placed) {
+      const px = entry.x !== undefined ? entry.x : entry[0];
+      const pz = entry.z !== undefined ? entry.z : entry[1];
+      if (Math.hypot(x - px, z - pz) < minDist) { ok = false; break; }
+    }
+    if (ok) return [x, z];
+  }
+
+  // Relaxed pass: only hard colliders matter, with a tighter pad and spawn ring.
+  for (let i = 0; i < relaxedTries; i++) {
+    const x = (rng() - 0.5) * SPOT_AREA_WIDTH * area;
+    const z = (rng() - 0.5) * SPOT_AREA_WIDTH * area;
+    if (Math.hypot(x - sx, z - sz) < RELAXED_SPAWN_DIST) continue;
+    if (blockedAt(x, z, colliders, limit, pad * 0.7)) continue;
+    return [x, z];
+  }
+
+  return [(rng() - 0.5) * FALLBACK_SPAN, (rng() - 0.5) * FALLBACK_SPAN];
 }
 
 function toPickup(entry) {
@@ -127,4 +187,31 @@ export function createLevel({ createBox, layout } = {}) {
   }
 
   return Object.freeze({ collides, pickupAt, resolve });
+}
+
+function defaultKeep(value) {
+  return Boolean(value?.userData?.keep);
+}
+
+function disposeValue(value) {
+  if (value && typeof value.dispose === 'function') value.dispose();
+}
+
+// Generic teardown for a scene subtree. Kept resources (shared geometries,
+// materials, textures) opt out through userData.keep, mirroring _keepGeo.
+export function disposeGroup(group, { keep = defaultKeep } = {}) {
+  if (!group || typeof group !== 'object') return;
+  if (typeof group.traverse !== 'function') return;
+  const shouldKeep = typeof keep === 'function' ? keep : defaultKeep;
+  group.traverse((node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.isInstancedMesh) disposeValue(node);
+    if (node.geometry && !shouldKeep(node.geometry)) disposeValue(node.geometry);
+    const material = node.material;
+    if (material) {
+      for (const item of Array.isArray(material) ? material : [material]) {
+        if (item && !shouldKeep(item)) disposeValue(item);
+      }
+    }
+  });
 }

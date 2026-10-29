@@ -205,7 +205,7 @@ import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
 import { createAudioEngine } from './audio.mjs';
-import { spotBlocked, createLevel } from './level.mjs';
+import { spotBlocked, createLevel, findFreeSpot, disposeGroup } from './level.mjs';
 import { createHud } from './hud.mjs';
 import { createGameLoop } from './engine-loop.mjs';
 import { createInputController } from './input.mjs';
@@ -466,9 +466,7 @@ class Game {
     else if(fps>58 && this._renderScale<1) this._renderScale=Math.min(1,this._renderScale+0.1);
     if(this._renderScale!==prev){ this.renderer.setPixelRatio(Math.min(devicePixelRatio,this._prCap)*this._renderScale); const el=this.stage; this.renderer.setSize(el.clientWidth||innerWidth, el.clientHeight||innerHeight,false); } }
   _mulberry(seed){ let a=seed>>>0; return ()=>{ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
-  _disposeGroup(g){ g.traverse(o=>{ if(o.isInstancedMesh&&o.dispose) o.dispose(); // frees the per-instance matrix buffer
-    if(o.geometry&&!(o.geometry.userData&&o.geometry.userData.keep)) o.geometry.dispose();
-    if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(!(m.userData&&m.userData.keep)) m.dispose(); }); } }); }
+  _disposeGroup(g){ disposeGroup(g); }
   // Merge box geometries into one non-indexed BufferGeometry (BufferGeometryUtils isn't in the vendored core build).
   _mergeBoxes(specs){ const T=window.THREE, parts=[]; let total=0;
     for(const s of specs){ let g=new T.BoxGeometry(s.w,s.h,s.d); g.translate(s.x,s.y,s.z); g=g.toNonIndexed(); parts.push(g); total+=g.attributes.position.count; }
@@ -634,36 +632,18 @@ class Game {
   _findFreeSpot(rng,opts){
     opts=opts||{};
     const W=38;
-    const area=opts.area||0.78;
-    const minDist=opts.minDist!==undefined?opts.minDist:4;
-    const spawnDist=opts.spawnDist!==undefined?opts.spawnDist:4.5;
-    const pad=opts.pad!==undefined?opts.pad:0.9;
-    const tries=opts.tries||150;
-    const avoid=opts.avoid||this._placedSpots||[];
-    const sx=0, sz=-W/2+3;
-    let fx=0, fz=0, found=false;
-    for(let i=0;i<tries;i++){
-      const ix=(rng()-.5)*W*area, iz=(rng()-.5)*W*area;
-      if(Math.hypot(ix-sx,iz-sz)<spawnDist) continue;
-      if(this._spotBlocked(ix,iz,pad)) continue;
-      let ok=true;
-      for(const a of avoid){
-        const ax=a.x!==undefined?a.x:a[0], az=a.z!==undefined?a.z:a[1];
-        if(Math.hypot(ix-ax,iz-az)<minDist){ ok=false; break; }
-      }
-      if(!ok) continue;
-      fx=ix; fz=iz; found=true; break;
-    }
-    if(!found){
-      // Reintento relajado: mitad de exigencia, solo evita colisionadores duros.
-      for(let i=0;i<60;i++){
-        const ix=(rng()-.5)*W*area, iz=(rng()-.5)*W*area;
-        if(Math.hypot(ix-sx,iz-sz)<3) continue;
-        if(this._spotBlocked(ix,iz,pad*0.7)) continue;
-        fx=ix; fz=iz; found=true; break;
-      }
-    }
-    if(!found){ fx=(rng()-.5)*8; fz=(rng()-.5)*8; }
+    const [fx,fz]=findFreeSpot({
+      rng,
+      colliders:this.colliders||[],
+      placed:opts.avoid||this._placedSpots||[],
+      roomHalf:this.roomHalf,
+      spawn:{x:0,z:-W/2+3},
+      area:opts.area||0.78,
+      minDist:opts.minDist!==undefined?opts.minDist:4,
+      spawnDist:opts.spawnDist!==undefined?opts.spawnDist:4.5,
+      pad:opts.pad!==undefined?opts.pad:0.9,
+      tries:opts.tries||150,
+    });
     if(Array.isArray(this._placedSpots)) this._placedSpots.push({x:fx,z:fz});
     return [fx,fz];
   }
@@ -861,7 +841,12 @@ class Game {
     if(roof){ this.temptation=0; this.lifelines=this.mementos; }
     this.camera.position.set(0,1.7,-W/2+3); this.yaw=0; this.pitch=0;
     this.input?.resetLook();
-    this.level = createLevel({ layout: { kind: 'room', colliders: this.colliders } });
+    const pickups=[
+      {id:'ward',x:this.wardPos.x,z:this.wardPos.z,radius:1.7},
+      {id:'pistol',x:this.pistolPos.x,z:this.pistolPos.z,radius:1.6},
+    ];
+    if(this.mementoPos) pickups.push({id:'memento',x:this.mementoPos.x,z:this.mementoPos.z,radius:1.7});
+    this.level = createLevel({ layout: { kind: 'room', colliders: this.colliders, pickups } });
     this._initRunState(n);
   }
 
@@ -1064,9 +1049,12 @@ class Game {
     const windowDot=(moving&&best)?mvx*best.x+mvz*best.z:0;
     const events=this._stepRun(dt,{hidden:false,nearest:this._nearest,windowDistance:bd,windowDot,moving,running:run&&moving,rooftop:roof,ledgeDistance:bd,rescueT:this.rescueT});
     this._updateEntities(dt); this._updateCritters(dt); this._tickRespawn(dt); this._updateBola(dt);
-    if(!this.wardCollected&&this.wardPos&&cam.position.distanceTo(this.wardPos)<1.7) this.collectWard();
-    if(!this.pistolTaken&&this.pistolPos&&cam.position.distanceTo(this.pistolPos)<1.6) this.pickupPistol();
-    if(this.mementoPos&&!this.mementoCollected&&cam.position.distanceTo(this.mementoPos)<1.7) this.collectMemento();
+    const hit=this.level?.pickupAt(cam.position);
+    if(hit){
+      if(hit.id==='ward'&&!this.wardCollected) this.collectWard();
+      else if(hit.id==='pistol'&&!this.pistolTaken) this.pickupPistol();
+      else if(hit.id==='memento'&&!this.mementoCollected) this.collectMemento();
+    }
     if(roof){ this._rooftop(dt); this._applyRunEvents(events); return; }
     if(!this.phoneUsed&&this.phonePos&&cam.position.distanceTo(this.phonePos)<1.7) this.usePhone();
     this._applyRunEvents(events);

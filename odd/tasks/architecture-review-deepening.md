@@ -10,7 +10,7 @@ Objective: Build the modular engine spine with separated responsibilities, prese
 ## Tasks
 - T1 (S1, route: parent-inline, status: completed, evidence: 80dd786 — all 18 call shapes via play(kind), synth untouched; suite 61 pass / 0 fail): done.
 - T2 (S2, route: delegated module/test writer + parent-inline Game wiring; status: completed, evidence: `89a3db1`; merged as PR #3 squash `a43ead1`; Risk: none): `tests/bestiary.test.mjs` 16/16, `tests/architecture-fitness.test.mjs` 9/9, suite 93/93, isolated Chrome `?test` 65/65; independent verifier found no change-caused blocker.
-- T3 (S3, route: parent-inline module/test/Game wiring; status: partial; evidence: `tests/level.test.mjs` 6/6 and browser self-test 65/65; existing `spotBlocked` wired): collision resolution now delegates to `createLevel().resolve`, preserving push-out mutation. Remaining work: move pickup collection, placement/search and disposal behind the level description without losing radii/order/layout invariants.
+- T3 (S3, route: delegated helper + parent-inline wiring; status: completed, evidence: `tests/level.test.mjs` 20/20, full suite 188/188, browser self-test 65/65): `spotBlocked`, `createLevel().resolve/collides/pickupAt`, `findFreeSpot` and `disposeGroup` are the runtime paths. `buildFloor` still constructs Three.js geometry as the adapter side; extracting that builder is a follow-up, not a second level rule engine.
 - T4 (S4, route: parent-inline HUD module/test/wiring; status: completed, evidence: `tests/hud.test.mjs` 17/17 and headless Chrome `?test` 65/65; Risk: item 6): `_sync` now renders through `createHud`, including the `bannerIn` restart sequence; browser checked with SwiftShader.
 
 ## Engine specs
@@ -20,12 +20,16 @@ Objective: Build the modular engine spine with separated responsibilities, prese
 - S8 (loop): `public/engine-loop.mjs`; RAF loop with clamped delta, start/stop and injectable `requestFrame` / `cancelFrame` / `now`; no DOM or Three.js imports.
 - S9 (composition): parent wires `Game` collaborators and existing modules into `index.html`; not delegated.
 - S10 (audio/level): parent finishes `audio.mjs` sink routing and `level.mjs` integration; not delegated in this wave.
+- S11 (level lifecycle): `level.mjs` owns deterministic free-spot search and generic group disposal; `Game` delegates `_findFreeSpot` and `_disposeGroup`. Acceptance: level tests cover the exact retry/relaxed/fallback sequence and keep-aware disposal; `buildFloor`/`_game` behavior is unchanged.
+- S12 (architecture docs): add an ADR and a dependency/module map for the modular monolith, grounded in the shipped seams and the research references. No runtime changes.
 
 ## Engine tasks
 - T5 (S5, route: delegated writer + parent-inline wiring, status: completed, evidence: `tests/run-state.test.mjs` 37/37, full suite 173/173 and headless Chrome `?test` 65/65; commit: parent): `_game` and `_rooftop` now advance dread, time, stamina, battery, temptation, lifelines, rescue and endings through `stepRunState`.
 - T6 (S6, route: delegated writer + parent-inline wiring, status: completed, evidence: `tests/input.test.mjs` 14/14, full suite 173/173 and headless Chrome `?test` 65/65; commit: parent): input adapter wired through `_wire`/`_frame`, including look sync, pointer-lock pause and fallback look.
 - T7 (S7, route: delegated writer, status: completed, evidence: `tests/hud.test.mjs` 17/17 and headless Chrome `?test` 65/65; Risk: item 6): full HUD view model wired through `_sync`.
 - T8 (S8, route: delegated writer, status: completed, evidence: `tests/engine-loop.test.mjs` 14/14 and headless Chrome `?test` 65/65, commit: parent): injectable RAF loop wired through `_initThree`.
+- T9 (S11, route: delegated writer + parent-inline wiring, status: completed, evidence: `tests/level.test.mjs` 20/20, full suite 188/188, browser self-test 65/65; commit: parent): `findFreeSpot` and `disposeGroup` are wired; pickups are passed in the level layout and collected through `pickupAt`.
+- T10 (S12, route: delegated docs writer, status: completed, evidence: `docs/adr/0001-modular-monolith.md` 155 lines, `docs/architecture.md` 220 lines, read back; commit: parent): modular-monolith ADR and dependency/module map.
 
 ## Log
 - L1 (user verbatim): "we were working in this architecture review: file:///private/var/folders/y6/qfdnxxsj6jv8_xlgpxrchvvr0000gn/T/architecture-review-1791325454.html can we continue on that work?"
@@ -57,3 +61,5 @@ Objective: Build the modular engine spine with separated responsibilities, prese
 - L15 (2026-10-29): Pushed `refactor/architecture-solid-spine` and opened draft PR #5 to `main` with `type:refactor`: https://github.com/corderogerardo/torres-del-sisal-game/pull/5. No merge or force-push. T3/audio remain follow-ups in this same branch.
 - L16 (2026-10-29): Wired the audio engine as the only `play(kind,{dist})` router; `Game` now supplies a sink that maps all fifteen kinds to the existing synth methods, so the old switch is gone and the tested `createAudioEngine` path is live. Full suite 173/173; headless Chrome `?test` 65/65.
 - L17 (2026-10-29): Added `createLevel().resolve` and delegated collision push-out to it from `_collide`; `buildFloor` creates the level description from its colliders. `tests/level.test.mjs` 6/6, full suite 174/174, browser self-test 65/65. Placement, pickup collection and disposal remain in `Game`.
+- L18 (2026-10-29): PR #5 merged as `2907f1b`. Started `refactor/level-lifecycle` from `origin/main`; T3 remainder and architecture docs are split into parallel writers with disjoint surfaces. Parent owns `index.html`, pickup integration, fitness tests and git.
+- L19 (2026-10-29): Parallel level writer added `findFreeSpot` and keep-aware `disposeGroup` with 20 focused tests and differential parity against the legacy methods; docs writer added the ADR and architecture map. Parent wired `_findFreeSpot`, `_disposeGroup`, level-collider layout, ordered pickups and `pickupAt` dispatch. Full suite 188/188; browser self-test 65/65 at 0.21 ms/frame. ADR/architecture gap rows updated to the wired state.
