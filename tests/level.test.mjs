@@ -27,6 +27,17 @@ test('pickupAt returns the item once, then null once consumed', () => {
   assert.equal(level.pickupAt({ x: -5, z: -5 }), null);
 });
 
+test('resolve pushes a point out of a collider and preserves the mutation', () => {
+  const level = createLevel({ layout: ROOM });
+  const p = { x: 0, z: -9.5 };
+  assert.equal(level.resolve(p, 0.5), true);
+  assert.equal(p.z, -9.3);
+
+  const free = { x: 0, z: 0 };
+  assert.equal(level.resolve(free, 0.5), false);
+  assert.deepEqual(free, { x: 0, z: 0 });
+});
+
 test('spotBlocked honors span math at the boundary', () => {
   const blocked = { limit: 9, boxes: [{ x0: 1, x1: 3, z0: 1, z1: 3 }], pad: 0.5 };
   assert.equal(spotBlocked(2, 2, blocked), true);

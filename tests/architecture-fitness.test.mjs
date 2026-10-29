@@ -5,6 +5,9 @@ import { RuntimeMetrics } from '../public/runtime-metrics.mjs';
 
 const rulesSource = await readFile(new URL('../public/game-rules.mjs', import.meta.url), 'utf8');
 const metricsSource = await readFile(new URL('../public/runtime-metrics.mjs', import.meta.url), 'utf8');
+const hudSource = await readFile(new URL('../public/hud.mjs', import.meta.url), 'utf8');
+const loopSource = await readFile(new URL('../public/engine-loop.mjs', import.meta.url), 'utf8');
+const runStateSource = await readFile(new URL('../public/run-state.mjs', import.meta.url), 'utf8');
 const pageSource = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 
 function assertPureBrowserIndependent(source, moduleName) {
@@ -23,6 +26,18 @@ function assertPureBrowserIndependent(source, moduleName) {
 test('game rules and metrics remain pure browser-independent modules', () => {
   assertPureBrowserIndependent(rulesSource, 'game-rules.mjs');
   assertPureBrowserIndependent(metricsSource, 'runtime-metrics.mjs');
+});
+
+test('engine seams remain pure and the wired ones are imported', () => {
+  assertPureBrowserIndependent(hudSource, 'hud.mjs');
+  assertPureBrowserIndependent(loopSource, 'engine-loop.mjs');
+  assertPureBrowserIndependent(runStateSource, 'run-state.mjs');
+  assert.match(pageSource, /from '\.\/hud\.mjs'/, 'Game must import the HUD seam');
+  assert.match(pageSource, /this\.hud\.render\(/, 'Game must render through the HUD seam');
+  assert.match(pageSource, /from '\.\/engine-loop\.mjs'/, 'Game must import the loop seam');
+  assert.match(pageSource, /this\._loop\.start\(\)/, 'Game must start the injected loop');
+  assert.match(pageSource, /from '\.\/run-state\.mjs'/, 'Game must import the run-state seam');
+  assert.match(pageSource, /this\._stepRun\(/, 'Game must advance survival rules through the run-state seam');
 });
 
 test('game opts into local metrics only through the metrics query parameter', () => {
@@ -71,7 +86,8 @@ test('runtime metrics ignore invalid frame durations', () => {
 
 test('audio seam is wired behind play(kind)', () => {
   assert.match(pageSource, /from '\.\/audio\.mjs'/);
-  assert.match(pageSource, /AUDIO_KINDS/);
+  assert.match(pageSource, /createAudioEngine/);
+  assert.match(pageSource, /this\.audio\.play\(kind/);
   assert.match(pageSource, /play\(kind/);
   assert.match(pageSource, /this\.play\('chime'\)/);
   assert.match(pageSource, /this\.play\('vanish'\)/);
@@ -121,4 +137,6 @@ test('Game synchronizes its entity list with bestiary lifecycle', () => {
 test('spot checks delegate to the level module', () => {
   assert.match(pageSource, /from '\.\/level\.mjs'/);
   assert.match(pageSource, /return spotBlocked\(x, z, \{ boxes: this\.colliders/);
+  assert.match(pageSource, /this\.level\.resolve\(p,r\)/);
+  assert.match(pageSource, /createLevel\(\{ layout: \{ kind: 'room', colliders: this\.colliders \} \}\)/);
 });

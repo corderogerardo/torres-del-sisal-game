@@ -204,8 +204,12 @@
 import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
-import { AUDIO_KINDS } from './audio.mjs';
-import { spotBlocked } from './level.mjs';
+import { createAudioEngine } from './audio.mjs';
+import { spotBlocked, createLevel } from './level.mjs';
+import { createHud } from './hud.mjs';
+import { createGameLoop } from './engine-loop.mjs';
+import { createInputController } from './input.mjs';
+import { createRunState, stepRunState } from './run-state.mjs';
 import { createBestiary, createBestiaryMeshFactory } from './bestiary.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
@@ -240,7 +244,7 @@ class Game {
     document.getElementById('runTelemetryOptOut').checked=!this._runTelemetryEnabled;
     if(!this._runTelemetryEnabled) void this._runRecords.clearPendingRuns();
     this._runSession = null;
-    this.state = { phase:'intro', floor:1, timeText:'05:00', timerColor:'#F1FAEE', dread:0, objective:'', banner:'', paused:false, ending:null, batt:100, stam:100, compassRot:0, ammo:0, hiddenView:false, floorName:'', temptation:0, showResist:false };
+    this.state = { phase:'intro', floor:1, timeText:'05:00', timerColor:'#F1FAEE', dread:0, objective:'', banner:'', resistNarr:'', paused:false, ending:null, batt:100, stam:100, compassRot:0, ammo:0, hiddenView:false, floorName:'', temptation:0, showResist:false };
     this._el = {
       hud:document.getElementById('hud'), intro:document.getElementById('intro'), end:document.getElementById('end'),
       pause:document.getElementById('pause'), hiddenOverlay:document.getElementById('hiddenOverlay'),
@@ -256,6 +260,32 @@ class Game {
       resistNarr:document.getElementById('resistNarr'), lifelineDots:document.getElementById('lifelineDots'),
       endTitle:document.getElementById('endTitle'), endSub:document.getElementById('endSub'), endStats:document.getElementById('endStats'),
     };
+    this.hud = createHud({ el: this._el });
+    this.input = createInputController({
+      target: window,
+      document,
+      sensitivity: this.props.mouseSensitivity,
+      isActive: () => this.state.phase === 'playing' && !this.state.paused,
+      onAction: (action) => this._onInputAction(action),
+    });
+    this._wasLocked = false;
+    this.audio = createAudioEngine({ sink: {
+      scream:()=>this._screamSfx(),
+      giggle:({dist})=>this._giggleSfx(dist),
+      whistle:({dist})=>this._whistleSfx(dist),
+      bones:()=>this._bonesSfx(),
+      sob:({dist})=>this._sobSfx(dist),
+      hooves:()=>this._hoovesSfx(),
+      scare:()=>this._scare(),
+      squeak:({dist})=>this._squeakSfx(dist),
+      ring:()=>this._ringSfx(),
+      splash:()=>this._splashSfx(),
+      vanish:()=>this._vanishSfx(),
+      chime:()=>this._chime(),
+      ascend:()=>this._ascendSfx(),
+      despair:()=>this._despair(),
+      release:()=>this._release(),
+    }});
     this._wire();
     this._waitThree(0);
     this._sync();
@@ -269,37 +299,29 @@ class Game {
   setState(patch){ Object.assign(this.state, patch); this._sync(); }
 
   _sync(){
-    const s = this.state, E = this._el, d = this._dw||(this._dw={});
-    // Only touch the DOM when a value actually changed (the HUD tick fires ~6.7x/s).
-    const cls=(el,n,on,k)=>{ if(d[k]!==on){ d[k]=on; el.classList.toggle(n,on); } };
-    const txt=(el,v,k)=>{ if(d[k]!==v){ d[k]=v; el.textContent=v; } };
-    const sty=(el,p,v,k)=>{ if(d[k]!==v){ d[k]=v; el.style[p]=v; } };
-    cls(E.intro,'hidden',s.phase!=='intro','iH');
-    cls(E.hud,'hidden',s.phase!=='playing','hH');
-    sty(E.end,'display',s.phase==='end'?'flex':'none','eD');
-    cls(E.end,'hidden',s.phase!=='end','eH');
-    cls(E.pause,'hidden',!(s.phase==='playing'&&s.paused),'pH');
-    cls(E.hiddenOverlay,'hidden',!s.hiddenView,'oH');
-    sty(E.reticle,'display',(s.phase==='playing'&&!s.paused&&!s.hiddenView)?'block':'none','rD');
-    sty(E.redveil,'opacity',Math.min(.62,s.dread/100*.68),'veil');
-    txt(E.floorText,String(s.floor).padStart(2,'0'),'ft');
-    txt(E.floorName,s.floorName||'','fn');
-    txt(E.dreadPct,Math.round(s.dread)+'%','dp');
-    sty(E.dreadBar,'width',Math.round(s.dread)+'%','dbw');
-    txt(E.timeText,s.timeText,'tt'); sty(E.timeText,'color',s.timerColor,'ttc');
-    txt(E.objective,s.objective,'obj');
-    sty(E.compass,'transform','rotate('+s.compassRot+'deg)','cmp');
-    sty(E.battBar,'width',Math.round(s.batt)+'%','bbw'); sty(E.battBar,'background',s.batt<25?'#E63946':'#A8DADC','bbc');
-    sty(E.stamBar,'width',Math.round(s.stam)+'%','sbw');
-    txt(E.ammo,String(s.ammo),'am');
-    txt(E.mementoCount,this.mementos+' / 6','mc');
-    cls(E.resistWrap,'hidden',!s.showResist,'rwH');
-    sty(E.resistBar,'width',Math.round(s.temptation)+'%','rbw');
-    txt(E.lifelineDots,'♥'.repeat(this.lifelines)+'♡'.repeat(Math.max(0,this.mementos-this.lifelines)),'ld');
-    if(s.banner!==this._lastBanner){ this._lastBanner=s.banner;
-      if(s.banner){ E.banner.textContent=s.banner; E.banner.classList.remove('hidden'); E.banner.style.animation='none'; void E.banner.offsetWidth; E.banner.style.animation='bannerIn 2.4s ease forwards'; }
-      else E.banner.classList.add('hidden'); }
-    if(s.phase==='end'&&s.ending){ E.endTitle.textContent=s.ending.title; E.endTitle.style.color=s.ending.bad?'#E63946':'#A8DADC'; E.endSub.textContent=s.ending.sub; E.endStats.textContent=s.ending.stats||''; }
+    const s = this.state;
+    this.hud.render({
+      phase: s.phase,
+      floor: s.floor,
+      floorName: s.floorName,
+      dread: s.dread,
+      timeText: s.timeText,
+      timerColor: s.timerColor,
+      objective: s.objective,
+      compassRot: s.compassRot,
+      batt: s.batt,
+      stam: s.stam,
+      ammo: s.ammo,
+      mementos: this.mementos,
+      lifelines: this.lifelines,
+      banner: s.banner,
+      temptation: s.temptation,
+      showResist: s.showResist,
+      hiddenView: s.hiddenView,
+      paused: s.paused,
+      ending: s.ending,
+      resistNarr: s.resistNarr,
+    });
   }
 
   _wire(){
@@ -309,18 +331,27 @@ class Game {
     document.getElementById('enterBtn').addEventListener('click',()=>{ void this._updateRunTelemetryPreferences(); this.start(); });
     document.getElementById('restartBtn').addEventListener('click',()=>this.start());
     this._el.pause.addEventListener('click',()=>this._lock());
-    this._kd=(e)=>{ const t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return; this.keys[e.code]=true; if(['KeyW','KeyS','KeyA','KeyD','Space'].includes(e.code)) e.preventDefault(); if(e.code==='KeyF'&&this.state.phase==='playing'&&!this.state.paused){ this.torchOn=!this.torchOn; if(this.torchOn&&this.torchBattery<=0) this.torchOn=false; } if(e.code==='KeyE') this._toggleHide(); if(e.code==='Escape'&&this._fallbackLook&&this.state.phase==='playing') this.setState({paused:true}); };
-    this._ku=(e)=>{ const t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return; this.keys[e.code]=false; };
-    window.addEventListener('keydown',this._kd); window.addEventListener('keyup',this._ku);
-    this._mm=(e)=>{ this._cursor={x:e.clientX,y:e.clientY}; if((document.pointerLockElement||this._fallbackLook)&&this.state.phase==='playing'&&!this.state.paused){ const s=(this.props.mouseSensitivity||1)*.0022; this.yaw-=e.movementX*s; this.pitch-=e.movementY*s; this.pitch=Math.max(-1.2,Math.min(1.2,this.pitch)); } };
-    document.addEventListener('mousemove',this._mm);
-    this._plc=()=>{ if(document.pointerLockElement){ this._hadLock=true; this._fallbackLook=false; if(this.state.phase==='playing') this.setState({paused:false}); } else if(this.state.phase==='playing'&&!this._fallbackLook){ this.setState({paused:true}); } };
-    document.addEventListener('pointerlockchange',this._plc);
-    document.addEventListener('visibilitychange',()=>{ const c=this._audioCtx; if(c){ if(document.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } } if(!document.hidden) void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
+    this.input.bind();
     window.addEventListener('online',()=>{ void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled}); });
     window.addEventListener('resize',()=>this._onResize());
     this.stage.addEventListener('click',()=>{ if(this.state.phase!=='playing') return; if(this.state.paused){ this._lock(); return; } this._shoot(); });
     document.getElementById('runTelemetryOptOut').addEventListener('change',()=>{ void this._updateRunTelemetryPreferences(); });
+  }
+
+  _onInputAction(action){
+    if(!action) return;
+    if(action.type==='torchToggle' && this.state.phase==='playing' && !this.state.paused){
+      this.torchOn=!this.torchOn;
+      if(this.torchOn&&this.torchBattery<=0) this.torchOn=false;
+    } else if(action.type==='hideToggle'){
+      this._toggleHide();
+    } else if(action.type==='pause' && this._fallbackLook && this.state.phase==='playing'){
+      this.setState({paused:true});
+    } else if(action.type==='visibility'){
+      const c=this._audioCtx;
+      if(c){ if(action.hidden){ c.suspend&&c.suspend(); } else if(c.resume){ c.resume(); } }
+      if(!action.hidden) void this._runRecords.flushPendingRuns({enabled:this._runTelemetryEnabled});
+    }
   }
 
   _setRunRecordsStatus(message){ document.getElementById('runRecordsStatus').textContent=message; }
@@ -488,7 +519,13 @@ class Game {
     this.entities=[];
     this.buildFloor(1);
     this.clock=new T.Clock();
-    const loop=()=>{ this._raf=requestAnimationFrame(loop); this._frame(); }; loop();
+    this._loop=createGameLoop({
+      requestFrame:(callback)=>requestAnimationFrame(callback),
+      cancelFrame:(handle)=>cancelAnimationFrame(handle),
+      now:()=>performance.now(),
+      update:(dt,now)=>this._frame(dt,now),
+    });
+    this._loop.start();
     if(typeof URLSearchParams!=='undefined' && new URLSearchParams(location.search).has('test')) this.runTests();
   }
 
@@ -632,6 +669,7 @@ class Game {
   }
 
   _collide(p,r){
+    if(this.level){ this.level.resolve(p,r); return; }
     for(const c of this.colliders||[]){
       const minx=c.x0-r, maxx=c.x1+r, minz=c.z0-r, maxz=c.z1+r;
       if(p.x>minx&&p.x<maxx&&p.z>minz&&p.z<maxz){
@@ -822,11 +860,27 @@ class Game {
     // rooftop finale init
     if(roof){ this.temptation=0; this.lifelines=this.mementos; }
     this.camera.position.set(0,1.7,-W/2+3); this.yaw=0; this.pitch=0;
+    this.input?.resetLook();
+    this.level = createLevel({ layout: { kind: 'room', colliders: this.colliders } });
+    this._initRunState(n);
   }
 
-  _frame(){
+  _frame(dt=.016, now=performance.now()){
     if(!this.renderer) return;
-    const T=window.THREE, dt=Math.min(this.clock.getDelta(),.05), now=performance.now(), cam=this.camera, ph=this.state.phase;
+    const T=window.THREE, cam=this.camera, ph=this.state.phase;
+    const inputState=this.input.getState();
+    this.keys=inputState.keys;
+    this._cursor=inputState.cursor;
+    this._fallbackLook=inputState.fallbackLook;
+    this.yaw=inputState.yaw;
+    this.pitch=inputState.pitch;
+    if(inputState.pointerLocked){
+      this._hadLock=true; this._fallbackLook=false;
+      if(ph==='playing'&&this.state.paused) this.setState({paused:false});
+    } else if(this._wasLocked && ph==='playing' && !this._fallbackLook && !this.state.paused){
+      this.setState({paused:true});
+    }
+    this._wasLocked=inputState.pointerLocked;
     if(this._metrics){
       if(this._metricsLastFrameTime) this._metrics.record(now-this._metricsLastFrameTime,this.renderer.info);
       this._metricsLastFrameTime=now;
@@ -839,6 +893,7 @@ class Game {
       if(Math.abs(ny)>.72) this.pitch-=Math.sign(ny)*((Math.abs(ny)-.72)/.28)*dt*1.1;
       this.pitch=Math.max(-1.2,Math.min(1.2,this.pitch));
     }
+    this.input.setLook(this.yaw,this.pitch);
     if(ph==='playing'&&!this.state.paused) this._game(dt);
     else if(ph!=='end'){ this.yaw+=dt*.12; cam.position.set(Math.sin(performance.now()*.0003)*1.5,1.9,-3); cam.rotation.set(-.08,this.yaw,0,'YXZ'); }
     if(this._spectral) this._spectral.time.value=now*.001;
@@ -922,19 +977,69 @@ class Game {
     this.setState({hiddenView:true});
     this._banner('ESCONDIDO · NO RESPIRES');
   }
+  _initRunState(n=this.state.floor){
+    this.run=createRunState({
+      difficulty:this.diff(),
+      floor:n,
+      mementos:this.mementos,
+      timeLeft:this.timeLeft,
+      dread:this._dread,
+      stamina:this._stam,
+      battery:this.torchBattery,
+      torchOn:this.torchOn,
+      temptation:this.temptation,
+      lifelines:this.lifelines,
+      rescueT:this.rescueT,
+    });
+  }
+
+  _syncRunFromGame(){
+    if(!this.run||this.run.ended) return;
+    this.run={...this.run, floor:this.state.floor, mementos:this.mementos, timeLeft:this.timeLeft, dread:this._dread, stamina:this._stam, battery:this.torchBattery, torchOn:this.torchOn, temptation:this.temptation, lifelines:this.lifelines, rescueT:this.rescueT};
+  }
+
+  _stepRun(dt,input){
+    if(!this.run) this._initRunState(this.state.floor);
+    if(!this.run) return null;
+    const {state,events}=stepRunState(this.run,dt,input);
+    this.run=state;
+    this._dread=state.dread;
+    this._stam=state.stamina;
+    this.torchBattery=state.battery;
+    this.torchOn=state.torchOn;
+    this.timeLeft=state.timeLeft;
+    this.temptation=state.temptation;
+    this.lifelines=state.lifelines;
+    this.rescueT=state.rescueT;
+    return events;
+  }
+
+  _applyRunEvents(events){
+    if(!events) return false;
+    if(events.lifelineUsed){
+      const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0];
+      this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE');
+      this.play('chime');
+    }
+    if(events.carreton){
+      this._carreton=true;
+      this.play('hooves');
+      this._banner('OYES UN CARRETÓN EN LA CALLE');
+    }
+    if(events.forcedAscend){ this.ascendForced('LA POSESIÓN SE COMPLETÓ'); return true; }
+    if(events.jumpEnding){ this.jumpEnding(); return true; }
+    if(events.rescuedEnding){ this.rescuedEnding(); return true; }
+    return false;
+  }
+
   _game(dt){
     const cam=this.camera, df=this.diff(), roof=this.state.floor>=7;
     if(this.hidden){
       cam.position.set(this.hidden.x,1.55,this.hidden.z);
       cam.rotation.set(this.pitch,this.yaw,0,'YXZ');
-      this.torchBattery=Math.min(100,this.torchBattery+7*dt);
-      this._stam=Math.min(100,this._stam+11*dt);
-      let hd=this._dread; if(this._nearest<3.5) hd+=2.4*dt; else hd-=1.6*dt;
-      this._dread=Math.max(0,Math.min(100,hd));
-      if(roof) this.temptation=Math.max(0,this.temptation-9*dt);
+      const events=this._stepRun(dt,{hidden:true,nearest:this._nearest,rooftop:roof});
       this._updateEntities(dt); this._updateCritters(dt); this._tickRespawn(dt);
-      if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
-      if(!roof){ this.timeLeft-=dt; if(this.timeLeft<=0) return this.ascendForced('LA POSESIÓN SE COMPLETÓ'); if(this._dread>=100) return this.ascendForced('LA POSESIÓN SE COMPLETÓ'); }
+      this._applyRunEvents(events);
       return;
     }
     // pull toward windows (interior) or the ledge (rooftop)
@@ -952,52 +1057,37 @@ class Game {
     const lim=this.roomHalf-.6;
     cam.position.x=Math.max(-lim,Math.min(lim,cam.position.x)); cam.position.z=Math.max(-lim,Math.min(lim,cam.position.z));
     this._collide(cam.position,.38);
-    if(run&&(fwd||strafe)) this._stam=Math.max(0,this._stam-20*dt); else this._stam=Math.min(100,this._stam+11*dt);
-    if(this.torchOn){ this.torchBattery=Math.max(0,this.torchBattery-2.6*dt); if(this.torchBattery<=0) this.torchOn=false; } else this.torchBattery=Math.min(100,this.torchBattery+7*dt);
     cam.position.y=1.7+((fwd||strafe)?Math.sin(performance.now()*.006)*.03:0);
     const shake=this._dread>60?(this._dread-60)/40*.02:0;
     cam.rotation.set(this.pitch+(Math.random()-.5)*shake,this.yaw+(Math.random()-.5)*shake,0,'YXZ');
-    let dr=this._dread;
-    if(bd<3&&!roof) dr+=((3-bd)/3)*df.near*dt;
-    if((fwd||strafe)&&best&&!roof){ const dot=mvx*best.x+mvz*best.z; if(dot<-.2) dr-=1.2*dt*(-dot); }
-    dr+=(df.creep+timeFactor*.75)*dt;
-    this._dread=Math.max(0,Math.min(100,dr));
+    const moving=!!(fwd||strafe);
+    const windowDot=(moving&&best)?mvx*best.x+mvz*best.z:0;
+    const events=this._stepRun(dt,{hidden:false,nearest:this._nearest,windowDistance:bd,windowDot,moving,running:run&&moving,rooftop:roof,ledgeDistance:bd,rescueT:this.rescueT});
     this._updateEntities(dt); this._updateCritters(dt); this._tickRespawn(dt); this._updateBola(dt);
-    if(this._dread>=70&&!this._carreton){ this._carreton=true; this.play('hooves'); this._banner('OYES UN CARRETÓN EN LA CALLE'); }
     if(!this.wardCollected&&this.wardPos&&cam.position.distanceTo(this.wardPos)<1.7) this.collectWard();
     if(!this.pistolTaken&&this.pistolPos&&cam.position.distanceTo(this.pistolPos)<1.6) this.pickupPistol();
     if(this.mementoPos&&!this.mementoCollected&&cam.position.distanceTo(this.mementoPos)<1.7) this.collectMemento();
-    if(roof){ this._rooftop(dt,bd); return; }
+    if(roof){ this._rooftop(dt); this._applyRunEvents(events); return; }
     if(!this.phoneUsed&&this.phonePos&&cam.position.distanceTo(this.phonePos)<1.7) this.usePhone();
-    if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
-    this.timeLeft-=dt; if(this.timeLeft<=0) return this.ascendForced('LA POSESIÓN SE COMPLETÓ');
-    if(this._dread>=100) return this.ascendForced('LA POSESIÓN SE COMPLETÓ');
+    this._applyRunEvents(events);
   }
 
-  _rooftop(dt,ledgeDist){
+  _rooftop(dt){
     const cam=this.camera;
     if(!this.phoneUsed&&this.phonePos&&cam.position.distanceTo(this.phonePos)<1.8) this.usePhone();
-    // temptation rises with dread and nearness to the ledge; mementos slow it
-    const near=Math.max(0,(6-ledgeDist)/6);
-    const slow=1-Math.min(.66,this.mementos*.11);
-    let rise=(0.5 + this._dread/100*1.7 + near*1.6) * slow;
-    const holding=this.keys['Space'];
-    if(holding) rise-=5.2;
-    this.temptation=Math.max(0,Math.min(100,this.temptation+rise*dt));
-    // narration ticks
+    // temptation and rescue are advanced by the pure run-state module.
     this._narrT-=dt;
-    if(this.temptation>50&&this._narrT<=0&&this.collected.length){ this._narrT=4.5; const idx=this.collected[Math.floor(Math.random()*this.collected.length)]; this._el.resistNarr.textContent=MEMENTOS[idx].mem; }
-    else if(this._narrT<=0){ this._el.resistNarr.textContent = this.mementos?'' : 'No trajiste nada a qué aferrarte.'; }
-    // lifeline auto-catch
-    if(this.temptation>=92&&this.lifelines>0){ this.lifelines--; this.temptation=52; const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0]; this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE'); this.play('chime'); }
-    if(this.temptation>=100) return this.jumpEnding();
-    if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
+    let narr=this.state.resistNarr;
+    if(this.temptation>50&&this._narrT<=0&&this.collected.length){ this._narrT=4.5; const idx=this.collected[Math.floor(Math.random()*this.collected.length)]; narr=MEMENTOS[idx].mem; }
+    else if(this._narrT<=0){ narr = this.mementos?'' : 'No trajiste nada a qué aferrarte.'; }
+    if(narr!==this.state.resistNarr) this.setState({resistNarr:narr});
   }
 
   collectWard(){
     this.wardCollected=true; this._dread=Math.max(0,this._dread-60); this.timeLeft=Math.min(this.diff().time,this.timeLeft+120);
     if(this.wardGroup) this.wardGroup.visible=false;
     this._banner('AMULETO · LA POSESIÓN RETROCEDE'); this.play('chime');
+    this._syncRunFromGame();
   }
   pickupPistol(){
     this.pistolTaken=true; if(this.pistolGroup) this.pistolGroup.visible=false;
@@ -1010,8 +1100,8 @@ class Game {
     this._dread=Math.max(0,this._dread-10);
     const m=MEMENTOS[this.mementoIdx];
     this._banner(m.name.toUpperCase()); this.play('chime');
-    this._el.resistNarr.textContent=m.mem;
-    this.setState({});
+    this.setState({resistNarr:m.mem});
+    this._syncRunFromGame();
   }
   usePhone(){
     this.phoneUsed=true; this.callMade=true;
@@ -1019,6 +1109,7 @@ class Game {
     this.rescueT=this.diff().rescue;
     this._banner('LLAMADA CONECTADA · AGUANTA HASTA QUE LLEGUEN');
     this.play('ring');
+    this._syncRunFromGame();
   }
   _aimTarget(){
     if(!this.entities||!this.entities.length) return null;
@@ -1112,25 +1203,7 @@ class Game {
   _statLine(){ const names=this.collected.map(i=>MEMENTOS[i].name).join(' · '); return this.mementos?('Recuerdos rescatados ('+this.mementos+'/6): '+names):'No rescataste ningún recuerdo.'; }
 
   play(kind, { dist = 1 } = {}) {
-    if (!AUDIO_KINDS.has(kind)) return false;
-    switch (kind) {
-      case 'scream': this._screamSfx(); return true;
-      case 'giggle': this._giggleSfx(dist); return true;
-      case 'whistle': this._whistleSfx(dist); return true;
-      case 'bones': this._bonesSfx(); return true;
-      case 'sob': this._sobSfx(dist); return true;
-      case 'hooves': this._hoovesSfx(); return true;
-      case 'scare': this._scare(); return true;
-      case 'squeak': this._squeakSfx(dist); return true;
-      case 'ring': this._ringSfx(); return true;
-      case 'splash': this._splashSfx(); return true;
-      case 'vanish': this._vanishSfx(); return true;
-      case 'chime': this._chime(); return true;
-      case 'ascend': this._ascendSfx(); return true;
-      case 'despair': this._despair(); return true;
-      case 'release': this._release(); return true;
-      default: return false;
-    }
+    return this.audio.play(kind, { dist });
   }
 
   // ---------- audio ----------
@@ -1194,7 +1267,7 @@ class Game {
   _banner(t){ this.setState({banner:t}); clearTimeout(this._bt); this._bt=setTimeout(()=>this.setState({banner:''}),2300); }
   _lock(){
     const el=this.stage;
-    const fallback=()=>{ this._fallbackLook=true; if(this.state.phase==='playing') this.setState({paused:false}); };
+    const fallback=()=>{ this._fallbackLook=true; this.input?.setFallbackLook(true); if(this.state.phase==='playing') this.setState({paused:false}); };
     if(!el||!el.requestPointerLock){ fallback(); return; }
     try{ const p=el.requestPointerLock(); if(p&&p.catch) p.catch(fallback); }catch(err){ fallback(); }
     clearTimeout(this._lockT);
@@ -1216,8 +1289,7 @@ class Game {
       const started=this._runSession.start(this.props.difficulty);
       if(started) void this._runRecords.startRun({...started,enabled:this._runTelemetryEnabled});
     }
-    this._el.resistNarr.textContent='';
-    this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
+    this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',resistNarr:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
     this._startAudio(); this.buildFloor(1); this._lock();
     this._banner('PISO 01 · '+this.theme.name);
     console.log('[TDS] entered · floor 1 ·', this.theme.name);
@@ -1285,7 +1357,7 @@ class Game {
       // targeting: empty pistol never highlights
       this.ammo=0; ok('empty pistol: no aim target', this._aimTarget()===null);
       // temptation clamps to [0,100]
-      this.state.floor=7; this.buildFloor(7); this.temptation=999; this._rooftop(0.016, 5); ok('temptation clamps ≤100', this.temptation<=100 && this.temptation>=0);
+      this.state.floor=7; this.buildFloor(7); this.temptation=999; this._syncRunFromGame(); this._stepRun(0.016,{rooftop:true,ledgeDistance:5}); ok('temptation clamps ≤100', this.temptation<=100 && this.temptation>=0);
       // memento pickup increments the counter
       this.state.floor=1; this.collected=[]; this.mementos=0; this.mementoCollected=false; this.buildFloor(1);
       const m0=this.mementos; this.camera.position.copy(this.mementoPos); this._game(0.05); ok('memento pickup increments count', this.mementos===m0+1);
