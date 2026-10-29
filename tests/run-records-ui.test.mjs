@@ -2,24 +2,25 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const page = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+const game = await readFile(new URL('../public/game.mjs', import.meta.url), 'utf8');
 
 function methodSource(name, nextName) {
-  const candidates = [page.indexOf(`  ${name}(`), page.indexOf(`  async ${name}(`)].filter((index) => index >= 0);
+  const candidates = [game.indexOf(`  ${name}(`), game.indexOf(`  async ${name}(`)].filter((index) => index >= 0);
   const start = candidates.length ? Math.min(...candidates) : -1;
-  const end = page.indexOf(`\n  ${nextName}(`, start + 1);
+  const end = game.indexOf(`\n  ${nextName}(`, start + 1);
   assert.ok(start >= 0 && end > start, `could not locate Game.${name}()`);
-  return page.slice(start, end);
+  return game.slice(start, end);
 }
 
 function assertPageMatches(pattern, description) {
-  assert.ok(pattern.test(page), description);
+  assert.ok(pattern.test(html), description);
 }
 
 test('run telemetry is automatic by default with a visible opt-out and no player identity', () => {
   assertPageMatches(/<input[^>]*type="checkbox"[^>]*id="runTelemetryOptOut"/, 'telemetry opt-out checkbox is required');
   assertPageMatches(/<label[^>]*for="runTelemetryOptOut"/, 'telemetry opt-out needs a label');
-  assert.doesNotMatch(page.match(/<input[^>]*id="runTelemetryOptOut"[^>]*>/)?.[0] || '', /\bchecked\b/);
+  assert.doesNotMatch(html.match(/<input[^>]*id="runTelemetryOptOut"[^>]*>/)?.[0] || '', /\bchecked\b/);
   assertPageMatches(/se registran automáticamente estadísticas agregadas/i, 'notice must disclose default-on aggregate collection');
   assertPageMatches(/nombre de usuario ni un identificador de jugador/i, 'notice must state that run data is not player-linked');
   assertPageMatches(/identificador aleatorio solo para evitar duplicados/i, 'notice must explain the run-scoped idempotency identifier');
