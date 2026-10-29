@@ -204,7 +204,7 @@
 import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
-import { AUDIO_KINDS } from './audio.mjs';
+import { createAudioEngine } from './audio.mjs';
 import { spotBlocked } from './level.mjs';
 import { createHud } from './hud.mjs';
 import { createGameLoop } from './engine-loop.mjs';
@@ -269,6 +269,23 @@ class Game {
       onAction: (action) => this._onInputAction(action),
     });
     this._wasLocked = false;
+    this.audio = createAudioEngine({ sink: {
+      scream:()=>this._screamSfx(),
+      giggle:({dist})=>this._giggleSfx(dist),
+      whistle:({dist})=>this._whistleSfx(dist),
+      bones:()=>this._bonesSfx(),
+      sob:({dist})=>this._sobSfx(dist),
+      hooves:()=>this._hoovesSfx(),
+      scare:()=>this._scare(),
+      squeak:({dist})=>this._squeakSfx(dist),
+      ring:()=>this._ringSfx(),
+      splash:()=>this._splashSfx(),
+      vanish:()=>this._vanishSfx(),
+      chime:()=>this._chime(),
+      ascend:()=>this._ascendSfx(),
+      despair:()=>this._despair(),
+      release:()=>this._release(),
+    }});
     this._wire();
     this._waitThree(0);
     this._sync();
@@ -1184,25 +1201,7 @@ class Game {
   _statLine(){ const names=this.collected.map(i=>MEMENTOS[i].name).join(' · '); return this.mementos?('Recuerdos rescatados ('+this.mementos+'/6): '+names):'No rescataste ningún recuerdo.'; }
 
   play(kind, { dist = 1 } = {}) {
-    if (!AUDIO_KINDS.has(kind)) return false;
-    switch (kind) {
-      case 'scream': this._screamSfx(); return true;
-      case 'giggle': this._giggleSfx(dist); return true;
-      case 'whistle': this._whistleSfx(dist); return true;
-      case 'bones': this._bonesSfx(); return true;
-      case 'sob': this._sobSfx(dist); return true;
-      case 'hooves': this._hoovesSfx(); return true;
-      case 'scare': this._scare(); return true;
-      case 'squeak': this._squeakSfx(dist); return true;
-      case 'ring': this._ringSfx(); return true;
-      case 'splash': this._splashSfx(); return true;
-      case 'vanish': this._vanishSfx(); return true;
-      case 'chime': this._chime(); return true;
-      case 'ascend': this._ascendSfx(); return true;
-      case 'despair': this._despair(); return true;
-      case 'release': this._release(); return true;
-      default: return false;
-    }
+    return this.audio.play(kind, { dist });
   }
 
   // ---------- audio ----------

@@ -86,7 +86,8 @@ test('runtime metrics ignore invalid frame durations', () => {
 
 test('audio seam is wired behind play(kind)', () => {
   assert.match(pageSource, /from '\.\/audio\.mjs'/);
-  assert.match(pageSource, /AUDIO_KINDS/);
+  assert.match(pageSource, /createAudioEngine/);
+  assert.match(pageSource, /this\.audio\.play\(kind/);
   assert.match(pageSource, /play\(kind/);
   assert.match(pageSource, /this\.play\('chime'\)/);
   assert.match(pageSource, /this\.play\('vanish'\)/);
