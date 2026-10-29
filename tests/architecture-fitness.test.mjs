@@ -5,6 +5,9 @@ import { RuntimeMetrics } from '../public/runtime-metrics.mjs';
 
 const rulesSource = await readFile(new URL('../public/game-rules.mjs', import.meta.url), 'utf8');
 const metricsSource = await readFile(new URL('../public/runtime-metrics.mjs', import.meta.url), 'utf8');
+const hudSource = await readFile(new URL('../public/hud.mjs', import.meta.url), 'utf8');
+const loopSource = await readFile(new URL('../public/engine-loop.mjs', import.meta.url), 'utf8');
+const runStateSource = await readFile(new URL('../public/run-state.mjs', import.meta.url), 'utf8');
 const pageSource = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 
 function assertPureBrowserIndependent(source, moduleName) {
@@ -23,6 +26,16 @@ function assertPureBrowserIndependent(source, moduleName) {
 test('game rules and metrics remain pure browser-independent modules', () => {
   assertPureBrowserIndependent(rulesSource, 'game-rules.mjs');
   assertPureBrowserIndependent(metricsSource, 'runtime-metrics.mjs');
+});
+
+test('engine seams remain pure and the wired ones are imported', () => {
+  assertPureBrowserIndependent(hudSource, 'hud.mjs');
+  assertPureBrowserIndependent(loopSource, 'engine-loop.mjs');
+  assertPureBrowserIndependent(runStateSource, 'run-state.mjs');
+  assert.match(pageSource, /from '\.\/hud\.mjs'/, 'Game must import the HUD seam');
+  assert.match(pageSource, /this\.hud\.render\(/, 'Game must render through the HUD seam');
+  assert.match(pageSource, /from '\.\/engine-loop\.mjs'/, 'Game must import the loop seam');
+  assert.match(pageSource, /this\._loop\.start\(\)/, 'Game must start the injected loop');
 });
 
 test('game opts into local metrics only through the metrics query parameter', () => {

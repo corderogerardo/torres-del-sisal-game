@@ -1,4 +1,4 @@
-Objective: Implement every architecture-review candidate behind deep seams with tests, preserving game behavior. Branch: feature/architecture-review-deepening-resume. Delivery: ask-on-risk; chain: stacked-to-main. Runner: node --test tests/*.test.mjs.
+Objective: Build the modular engine spine with separated responsibilities, preserving game behavior. Branch: refactor/architecture-solid-spine from 02fb41c. Delivery: ask-on-risk; chain: stacked-to-main. Runner: node --test tests/*.test.mjs.
 
 ## Specs
 - S1 (audio): User said "Audio first". Authorized scope: deepen Audio behind `play(kind, {dist})` plus `startAmbience` / `stop` with a silent null-sink adapter; migrate all eighteen call shapes; existing synth methods stay until moved. Acceptance: `tests/audio.test.mjs` passes; seam test in `tests/architecture-fitness.test.mjs` proves wiring; suite green.
@@ -9,9 +9,23 @@ Objective: Implement every architecture-review candidate behind deep seams with 
 
 ## Tasks
 - T1 (S1, route: parent-inline, status: completed, evidence: 80dd786 — all 18 call shapes via play(kind), synth untouched; suite 61 pass / 0 fail): done.
-- T2 (S2, route: delegated module/test writer + parent-inline Game wiring; status: verified, commit pending; Risk: none — deterministic behavior/integration tests and browser self-test cover the migrated entity seam): `tests/bestiary.test.mjs` 16/16, `tests/architecture-fitness.test.mjs` 9/9, suite 93/93, isolated Chrome `?test` 65/65; independent verifier found no change-caused blocker.
+- T2 (S2, route: delegated module/test writer + parent-inline Game wiring; status: completed, evidence: `89a3db1`; merged as PR #3 squash `a43ead1`; Risk: none): `tests/bestiary.test.mjs` 16/16, `tests/architecture-fitness.test.mjs` 9/9, suite 93/93, isolated Chrome `?test` 65/65; independent verifier found no change-caused blocker.
 - T3 (S3, route: parent-inline module/test/Game wiring; status: pending; existing evidence: wired-spot committed 0ba69be, `_spotBlocked` delegates to `spotBlocked` with finite-guard preserving old edge behavior): remaining work is adopting level collision, pickup, placement/search, and disposal behavior without losing push-out mutation, pickup radii/order, or existing layout invariants.
-- T4 (S4, route: parent-inline HUD module/test/wiring; status: pending; Risk: item 6 — browser-visible banner animation has no automated end-to-end coverage): preserve the existing `bannerIn` restart behavior and verify in browser (`?test` + manual banner check) before closing the remaining `_sync` DOM seam.
+- T4 (S4, route: parent-inline HUD module/test/wiring; status: completed, evidence: `tests/hud.test.mjs` 17/17 and headless Chrome `?test` 65/65; Risk: item 6): `_sync` now renders through `createHud`, including the `bannerIn` restart sequence; browser checked with SwiftShader.
+
+## Engine specs
+- S5 (run-state): pure `public/run-state.mjs`; `createRunState` / `stepRunState`; preserve dread, time, stamina, battery, temptation, lifeline, forced ascension, rescue and jump transitions. No DOM, Three.js, network, storage, or imports.
+- S6 (input): `public/input.mjs`; DOM adapter for keys, mouse look, pointer lock, visibility and fallback look; inject target/document; no game-phase knowledge beyond an `isActive` callback.
+- S7 (hud): expand `public/hud.mjs`; full HUD view model; preserve dirty-checking and the `bannerIn` restart contract; fake-document tests.
+- S8 (loop): `public/engine-loop.mjs`; RAF loop with clamped delta, start/stop and injectable `requestFrame` / `cancelFrame` / `now`; no DOM or Three.js imports.
+- S9 (composition): parent wires `Game` collaborators and existing modules into `index.html`; not delegated.
+- S10 (audio/level): parent finishes `audio.mjs` sink routing and `level.mjs` integration; not delegated in this wave.
+
+## Engine tasks
+- T5 (S5, route: delegated writer, status: module completed, wiring pending, commit: parent): `public/run-state.mjs` 37/37 tests; pure rules for dread, time, stamina, battery, temptation, lifeline, forced ascension, rescue and endings. Integration into `_game`/`_rooftop` remains.
+- T6 (S6, route: delegated writer, status: module completed, wiring pending, commit: parent): `public/input.mjs` 13/13 tests; injected DOM adapter for keys, look, pointer lock, visibility and fallback look. Integration into `_wire`/`_frame` remains.
+- T7 (S7, route: delegated writer, status: completed, evidence: `tests/hud.test.mjs` 17/17 and headless Chrome `?test` 65/65; Risk: item 6): full HUD view model wired through `_sync`.
+- T8 (S8, route: delegated writer, status: completed, evidence: `tests/engine-loop.test.mjs` 14/14 and headless Chrome `?test` 65/65, commit: parent): injectable RAF loop wired through `_initThree`.
 
 ## Log
 - L1 (user verbatim): "we were working in this architecture review: file:///private/var/folders/y6/qfdnxxsj6jv8_xlgpxrchvvr0000gn/T/architecture-review-1791325454.html can we continue on that work?"
@@ -33,3 +47,8 @@ Objective: Implement every architecture-review candidate behind deep seams with 
 - Delivery: the current authored diff exceeds the `ask-on-risk` ~400-line threshold; chain strategy is now cached as `stacked-to-main`. This selects local slicing only and does not authorize push or PR creation.
 - L7 (user choice verbatim, 2026-10-29): "PRs apilados a main (recomendado)"
 - PR slicing: T2 is currently 948 changed lines, so the selected stacked-to-main strategy still needs one honest ≤400-line slicing pass before any PR is prepared. T3/T4 boundaries will be sized after completion. No push or PR creation is authorized.
+- L8 (user approval verbatim, 2026-10-29): "esta bien hagamos un buen engine para el juego con responsabilidades separadas y que el juego funcione bien"
+- L9 (user verbatim, 2026-10-29): "ejecuta multiples agentes para terminar mas rapido"
+- L10 (2026-10-29): Started `refactor/architecture-solid-spine` from `origin/main` at `02fb41c` after PR #4 merged. Parallel writers receive disjoint module/test surfaces; parent owns `public/index.html`, shared fitness tests, docs, integration and git. Each writer runs focused tests only; parent runs the seam check and full suite.
+- L11 (2026-10-29): PR #4 merged as `02fb41c`; Manguanguas is now on `main`. Existing `.atl/` changes are pre-existing and must not be staged.
+- L12 (2026-10-29): Four parallel writers completed disjoint modules: run-state 37/37, input 13/13, HUD 17/17, engine-loop 14/14. Parent wired HUD and loop into `public/index.html`; full Node suite 172/172. Headless Chrome with SwiftShader ran `/?test` → 65/65 and 0.19 ms/frame. Run-state and input modules are tested but not yet wired; their integration remains the next slice.

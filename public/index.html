@@ -206,6 +206,8 @@ import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
 import { AUDIO_KINDS } from './audio.mjs';
 import { spotBlocked } from './level.mjs';
+import { createHud } from './hud.mjs';
+import { createGameLoop } from './engine-loop.mjs';
 import { createBestiary, createBestiaryMeshFactory } from './bestiary.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
@@ -240,7 +242,7 @@ class Game {
     document.getElementById('runTelemetryOptOut').checked=!this._runTelemetryEnabled;
     if(!this._runTelemetryEnabled) void this._runRecords.clearPendingRuns();
     this._runSession = null;
-    this.state = { phase:'intro', floor:1, timeText:'05:00', timerColor:'#F1FAEE', dread:0, objective:'', banner:'', paused:false, ending:null, batt:100, stam:100, compassRot:0, ammo:0, hiddenView:false, floorName:'', temptation:0, showResist:false };
+    this.state = { phase:'intro', floor:1, timeText:'05:00', timerColor:'#F1FAEE', dread:0, objective:'', banner:'', resistNarr:'', paused:false, ending:null, batt:100, stam:100, compassRot:0, ammo:0, hiddenView:false, floorName:'', temptation:0, showResist:false };
     this._el = {
       hud:document.getElementById('hud'), intro:document.getElementById('intro'), end:document.getElementById('end'),
       pause:document.getElementById('pause'), hiddenOverlay:document.getElementById('hiddenOverlay'),
@@ -256,6 +258,7 @@ class Game {
       resistNarr:document.getElementById('resistNarr'), lifelineDots:document.getElementById('lifelineDots'),
       endTitle:document.getElementById('endTitle'), endSub:document.getElementById('endSub'), endStats:document.getElementById('endStats'),
     };
+    this.hud = createHud({ el: this._el });
     this._wire();
     this._waitThree(0);
     this._sync();
@@ -269,37 +272,29 @@ class Game {
   setState(patch){ Object.assign(this.state, patch); this._sync(); }
 
   _sync(){
-    const s = this.state, E = this._el, d = this._dw||(this._dw={});
-    // Only touch the DOM when a value actually changed (the HUD tick fires ~6.7x/s).
-    const cls=(el,n,on,k)=>{ if(d[k]!==on){ d[k]=on; el.classList.toggle(n,on); } };
-    const txt=(el,v,k)=>{ if(d[k]!==v){ d[k]=v; el.textContent=v; } };
-    const sty=(el,p,v,k)=>{ if(d[k]!==v){ d[k]=v; el.style[p]=v; } };
-    cls(E.intro,'hidden',s.phase!=='intro','iH');
-    cls(E.hud,'hidden',s.phase!=='playing','hH');
-    sty(E.end,'display',s.phase==='end'?'flex':'none','eD');
-    cls(E.end,'hidden',s.phase!=='end','eH');
-    cls(E.pause,'hidden',!(s.phase==='playing'&&s.paused),'pH');
-    cls(E.hiddenOverlay,'hidden',!s.hiddenView,'oH');
-    sty(E.reticle,'display',(s.phase==='playing'&&!s.paused&&!s.hiddenView)?'block':'none','rD');
-    sty(E.redveil,'opacity',Math.min(.62,s.dread/100*.68),'veil');
-    txt(E.floorText,String(s.floor).padStart(2,'0'),'ft');
-    txt(E.floorName,s.floorName||'','fn');
-    txt(E.dreadPct,Math.round(s.dread)+'%','dp');
-    sty(E.dreadBar,'width',Math.round(s.dread)+'%','dbw');
-    txt(E.timeText,s.timeText,'tt'); sty(E.timeText,'color',s.timerColor,'ttc');
-    txt(E.objective,s.objective,'obj');
-    sty(E.compass,'transform','rotate('+s.compassRot+'deg)','cmp');
-    sty(E.battBar,'width',Math.round(s.batt)+'%','bbw'); sty(E.battBar,'background',s.batt<25?'#E63946':'#A8DADC','bbc');
-    sty(E.stamBar,'width',Math.round(s.stam)+'%','sbw');
-    txt(E.ammo,String(s.ammo),'am');
-    txt(E.mementoCount,this.mementos+' / 6','mc');
-    cls(E.resistWrap,'hidden',!s.showResist,'rwH');
-    sty(E.resistBar,'width',Math.round(s.temptation)+'%','rbw');
-    txt(E.lifelineDots,'♥'.repeat(this.lifelines)+'♡'.repeat(Math.max(0,this.mementos-this.lifelines)),'ld');
-    if(s.banner!==this._lastBanner){ this._lastBanner=s.banner;
-      if(s.banner){ E.banner.textContent=s.banner; E.banner.classList.remove('hidden'); E.banner.style.animation='none'; void E.banner.offsetWidth; E.banner.style.animation='bannerIn 2.4s ease forwards'; }
-      else E.banner.classList.add('hidden'); }
-    if(s.phase==='end'&&s.ending){ E.endTitle.textContent=s.ending.title; E.endTitle.style.color=s.ending.bad?'#E63946':'#A8DADC'; E.endSub.textContent=s.ending.sub; E.endStats.textContent=s.ending.stats||''; }
+    const s = this.state;
+    this.hud.render({
+      phase: s.phase,
+      floor: s.floor,
+      floorName: s.floorName,
+      dread: s.dread,
+      timeText: s.timeText,
+      timerColor: s.timerColor,
+      objective: s.objective,
+      compassRot: s.compassRot,
+      batt: s.batt,
+      stam: s.stam,
+      ammo: s.ammo,
+      mementos: this.mementos,
+      lifelines: this.lifelines,
+      banner: s.banner,
+      temptation: s.temptation,
+      showResist: s.showResist,
+      hiddenView: s.hiddenView,
+      paused: s.paused,
+      ending: s.ending,
+      resistNarr: s.resistNarr,
+    });
   }
 
   _wire(){
@@ -488,7 +483,13 @@ class Game {
     this.entities=[];
     this.buildFloor(1);
     this.clock=new T.Clock();
-    const loop=()=>{ this._raf=requestAnimationFrame(loop); this._frame(); }; loop();
+    this._loop=createGameLoop({
+      requestFrame:(callback)=>requestAnimationFrame(callback),
+      cancelFrame:(handle)=>cancelAnimationFrame(handle),
+      now:()=>performance.now(),
+      update:(dt,now)=>this._frame(dt,now),
+    });
+    this._loop.start();
     if(typeof URLSearchParams!=='undefined' && new URLSearchParams(location.search).has('test')) this.runTests();
   }
 
@@ -824,9 +825,9 @@ class Game {
     this.camera.position.set(0,1.7,-W/2+3); this.yaw=0; this.pitch=0;
   }
 
-  _frame(){
+  _frame(dt=.016, now=performance.now()){
     if(!this.renderer) return;
-    const T=window.THREE, dt=Math.min(this.clock.getDelta(),.05), now=performance.now(), cam=this.camera, ph=this.state.phase;
+    const T=window.THREE, cam=this.camera, ph=this.state.phase;
     if(this._metrics){
       if(this._metricsLastFrameTime) this._metrics.record(now-this._metricsLastFrameTime,this.renderer.info);
       this._metricsLastFrameTime=now;
@@ -986,8 +987,10 @@ class Game {
     this.temptation=Math.max(0,Math.min(100,this.temptation+rise*dt));
     // narration ticks
     this._narrT-=dt;
-    if(this.temptation>50&&this._narrT<=0&&this.collected.length){ this._narrT=4.5; const idx=this.collected[Math.floor(Math.random()*this.collected.length)]; this._el.resistNarr.textContent=MEMENTOS[idx].mem; }
-    else if(this._narrT<=0){ this._el.resistNarr.textContent = this.mementos?'' : 'No trajiste nada a qué aferrarte.'; }
+    let narr=this.state.resistNarr;
+    if(this.temptation>50&&this._narrT<=0&&this.collected.length){ this._narrT=4.5; const idx=this.collected[Math.floor(Math.random()*this.collected.length)]; narr=MEMENTOS[idx].mem; }
+    else if(this._narrT<=0){ narr = this.mementos?'' : 'No trajiste nada a qué aferrarte.'; }
+    if(narr!==this.state.resistNarr) this.setState({resistNarr:narr});
     // lifeline auto-catch
     if(this.temptation>=92&&this.lifelines>0){ this.lifelines--; this.temptation=52; const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0]; this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE'); this.play('chime'); }
     if(this.temptation>=100) return this.jumpEnding();
@@ -1010,8 +1013,7 @@ class Game {
     this._dread=Math.max(0,this._dread-10);
     const m=MEMENTOS[this.mementoIdx];
     this._banner(m.name.toUpperCase()); this.play('chime');
-    this._el.resistNarr.textContent=m.mem;
-    this.setState({});
+    this.setState({resistNarr:m.mem});
   }
   usePhone(){
     this.phoneUsed=true; this.callMade=true;
@@ -1216,8 +1218,7 @@ class Game {
       const started=this._runSession.start(this.props.difficulty);
       if(started) void this._runRecords.startRun({...started,enabled:this._runTelemetryEnabled});
     }
-    this._el.resistNarr.textContent='';
-    this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
+    this.setState({phase:'playing',floor:1,dread:0,paused:false,objective:'Recoge el recuerdo · luego sigue subiendo',banner:'',resistNarr:'',ending:null,batt:100,stam:100,ammo:0,hiddenView:false,temptation:0,showResist:false});
     this._startAudio(); this.buildFloor(1); this._lock();
     this._banner('PISO 01 · '+this.theme.name);
     console.log('[TDS] entered · floor 1 ·', this.theme.name);
