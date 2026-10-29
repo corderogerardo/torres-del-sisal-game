@@ -7,16 +7,17 @@
 
 ## Context
 
-Torres del Sisal ships as one static directory. `public/index.html` loads a vendored
-Three.js r128 build and a single module script, and the whole game is served by any
-static file server and deployed to Cloudflare Pages by copying `public/`. There is no
+Torres del Sisal ships as one static directory. `public/index.html` is the page shell:
+it loads a vendored Three.js r128 build, stamps `window.TDS_BUILD` inline, and loads
+one module entrypoint, `public/main.mjs`. The whole game is served by any static file
+server and deployed to Cloudflare Pages by copying `public/`. There is no
 package manifest, bundler, transpiler, or dependency install step, and core gameplay
 must stay playable offline.
 
-That shape had a cost. `index.html` grew to own world building, rendering, combat,
-objectives, placement, pickup orchestration, audio synthesis, HUD writes, input
-handling, and the survival rules. None of that could be tested in Node, every change
-required a full-game browser check, and parallel work collided in one file.
+That shape had a cost. Before the entrypoint split, `index.html` owned world building,
+rendering, combat, objectives, placement, pickup orchestration, audio synthesis, HUD
+writes, input handling, and the survival rules. None of that could be tested in Node,
+every change required a full-game browser check, and parallel work collided in one file.
 
 An architecture review named the engine seams that would remove the worst coupling and
 proved them out one at a time: `game-rules`, `runtime-metrics`, `run-state`,
@@ -40,9 +41,11 @@ Keep a **modular monolith**:
 
 - Static vanilla ES modules plus a vendored Three.js r128. No bundler, framework, ECS,
   or dependency-injection container.
-- Adapters are constructed and injected at the **composition root** in
-  `public/index.html`. `Game` owns the DOM handles, the renderer, and the adapter wiring;
-  modules never reach for those.
+- Adapters are constructed and injected at the **composition root**,
+  `public/main.mjs`, which creates `Game` from `public/game.mjs`. `Game` owns the DOM
+  handles, the renderer, and the adapter wiring; modules never reach for those.
+  `public/index.html` stays the page shell and keeps `window.TDS_BUILD` inline for
+  deploy stamping.
 - Modules with no platform dependency stay browser-free: no imports, no `window`,
   `document`, `THREE`, network, storage, or timers.
 - Seams are **feature-oriented**, not layer-oriented: `audio`, `bestiary`, `level`,
@@ -93,24 +96,26 @@ Positive:
 - Pure modules (`game-rules`, `runtime-metrics`, `run-state`, `engine-loop`, `hud`,
   `audio`, `level`, `bestiary`) run under `node --test` with no browser, GPU, install,
   or network.
-- Dependency direction is explicit: the composition root imports modules; modules do
-  not import the root and do not import `three.min.js`. Platform objects arrive as
-  arguments or factory options.
+- Dependency direction is explicit: `index.html` → `main.mjs` → `game.mjs` → feature
+  modules. Feature modules do not import `game.mjs` or `main.mjs`, and no module
+  imports `three.min.js`. Platform objects arrive as arguments or factory options.
 - Rendering, difficulty tuning, and deploy stay where they were, so performance and
   hosting are not re-litigated by the refactor.
-- Disjoint module files let several writers work in parallel; the composition root stays
-  a single, serialized integration point.
+- Disjoint module files let several writers work in parallel; `game.mjs` stays the
+  single, serialized integration point, while `index.html` and `main.mjs` are thin,
+  stable entrypoints.
 
 Negative:
 
 - `Game` still owns world building, combat, objectives, and floor orchestration. It is
-  smaller than before but still the largest hand-written file in the repo.
+  smaller than before but still the largest hand-written file in the repo, now
+  `public/game.mjs`.
 - Two quality gates remain manual: the HUD banner restart is a CSS-animation behavior
   that a fake document cannot prove, and synthesized audio needs a human listening pass.
 - The level lifecycle is wired for collision, free-spot search, keep-aware disposal and
-  pickup collection through `level.mjs`, but `buildFloor` still constructs the Three.js
-  geometry and object meshes directly. That is an intentional adapter boundary, not a
-  second rule engine.
+  pickup collection through `level.mjs`, but `buildFloor` in `public/game.mjs` still
+  constructs the Three.js geometry and object meshes directly. That is an intentional
+  adapter boundary, not a second rule engine.
 - The fitness tests are source-level heuristics, not a sandbox. They catch the common
   regressions (an added import, a `window` reference, a dropped wiring call), not every
   way a module could reach a global.

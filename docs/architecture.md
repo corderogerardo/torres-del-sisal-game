@@ -1,22 +1,26 @@
 # Architecture
 
-Torres del Sisal is a **modular monolith**: one static page whose `Game` class is the
-composition root, plus feature-oriented ES modules with injected adapters. There is no
-bundler, framework, ECS, or DI container. The reasoning and rejected alternatives are
-recorded in [ADR 0001](adr/0001-modular-monolith.md).
+Torres del Sisal is a **modular monolith**: a static page shell, a small module
+entrypoint that acts as the composition root, and one `Game` orchestrator, plus
+feature-oriented ES modules with injected adapters. There is no bundler, framework,
+ECS, or DI container. The reasoning and rejected alternatives are recorded in
+[ADR 0001](adr/0001-modular-monolith.md).
 
 This document describes the shipped structure, the dependency rules that keep it
 honest, how to extend it without editing unrelated modules, and what is still missing.
 
 ## Module map
 
-Everything runs from `public/`. `public/index.html` is the composition root: it loads
-the vendored Three.js build as a classic script and is the only place that wires the
-runtime modules together.
+Everything runs from `public/`. Entry is three files deep: `public/index.html` is the
+page shell (markup, CSS, the inline `window.TDS_BUILD` stamp, and one module script
+tag), `public/main.mjs` is the composition root (global error handlers and `boot()`),
+and `public/game.mjs` owns the `Game` class and the remaining orchestration.
 
 | File | Kind | Public interface | Injected collaborators | Tests |
 | --- | --- | --- | --- | --- |
-| [`public/index.html`](../public/index.html) | Composition root | `Game` (not exported), page markup | Modules, DOM, `window.THREE` | Browser `/?test` |
+| [`public/index.html`](../public/index.html) | Page shell | Page markup, `window.TDS_BUILD` | `./three.min.js`, `./main.mjs` via script tags | Browser `/?test`; entrypoint shell assertions |
+| [`public/main.mjs`](../public/main.mjs) | Composition root | None exported; installs error handlers and sets `window._game` once | `Game`, `showFatal`, DOM, `window` | `architecture-fitness.test.mjs` |
+| [`public/game.mjs`](../public/game.mjs) | Orchestrator | `Game`, `showFatal` | Modules, DOM, `window.THREE` | `architecture-fitness.test.mjs`; browser `/?test` |
 | [`public/game-rules.mjs`](../public/game-rules.mjs) | Pure | `getDifficultyConfig(name)` | — | `game-rules.test.mjs` |
 | [`public/runtime-metrics.mjs`](../public/runtime-metrics.mjs) | Pure | `RuntimeMetrics(capacity)`, `record(ms, rendererInfo)`, `snapshot()` | — | `architecture-fitness.test.mjs` |
 | [`public/run-state.mjs`](../public/run-state.mjs) | Pure | `createRunState(options)`, `stepRunState(state, dt, frame)` → `{ state, events }` | Resolved difficulty config; frame observations as data | `run-state.test.mjs` |
@@ -42,34 +46,43 @@ Two boundaries are worth stating precisely:
 ## Dependency direction
 
 ```text
-public/index.html  (composition root: Game, DOM, THREE, render)
-├── game-rules.mjs        pure
-├── runtime-metrics.mjs   pure
-├── run-state.mjs         pure
-├── engine-loop.mjs       pure scheduler
-├── hud.mjs               view model, injected DOM nodes
-├── audio.mjs             play(kind) policy, injected sink
-├── level.mjs             level description, injected box factory
-├── bestiary.mjs          entity behavior, injected mesh factory
-├── input.mjs             DOM adapter, injected target/document
-└── run-telemetry.mjs     adapter
-    └── run-outbox.mjs    IndexedDB adapter, injected indexedDB
+public/index.html  (page shell: markup, CSS, TDS_BUILD, script tags)
+└── main.mjs       (composition root: error handlers, boot, window._game)
+    └── game.mjs   (Game class: DOM, THREE, render, orchestration)
+        ├── game-rules.mjs        pure
+        ├── runtime-metrics.mjs   pure
+        ├── run-state.mjs         pure
+        ├── engine-loop.mjs       pure scheduler
+        ├── hud.mjs               view model, injected DOM nodes
+        ├── audio.mjs             play(kind) policy, injected sink
+        ├── level.mjs             level description, injected box factory
+        ├── bestiary.mjs          entity behavior, injected mesh factory
+        ├── input.mjs             DOM adapter, injected target/document
+        └── run-telemetry.mjs     adapter
+            └── run-outbox.mjs    IndexedDB adapter, injected indexedDB
 ```
 
-The single module-to-module edge is `run-telemetry` → `run-outbox`, both adapters. No
-module imports `index.html`, and no module imports `three.min.js`; Three.js reaches
-`bestiary` as the `THREE` option of the injected mesh factory.
+Entrypoint edges are one-directional: `index.html` → `main.mjs` → `game.mjs` → feature
+modules. The single module-to-module edge among feature modules is `run-telemetry` →
+`run-outbox`, both adapters. No feature module imports `index.html`, `main.mjs`, or
+`game.mjs`, and none imports `three.min.js`; Three.js reaches `bestiary` as the `THREE`
+option of the injected mesh factory.
 
 ### Allowed
 
-- Composition root → any module.
+- Page shell → composition root through one module script tag.
+- Composition root (`main.mjs`) → `game.mjs`.
+- `game.mjs` → any feature module.
 - Module → collaborators passed in as arguments, options, or callbacks.
 - Adapter → pure sibling or another adapter when the interface is explicit.
 - Pure module → no imports at all. Share values by parameter, not by importing state.
 
 ### Forbidden
 
-- A module importing the composition root, or reading page state it was not given.
+- A feature module importing `main.mjs` or `game.mjs`, or reading page state it was not
+  given.
+- The page shell embedding `Game` or game logic; it stays markup, styles, the build
+  stamp, and script tags.
 - A pure module importing a runtime dependency, or touching `window`, `document`,
   `THREE`, `localStorage`, `sessionStorage`, `fetch`, `XMLHttpRequest`, or `sendBeacon`.
   `tests/architecture-fitness.test.mjs` checks these by source pattern.
@@ -78,16 +91,20 @@ module imports `index.html`, and no module imports `three.min.js`; Three.js reac
 - Adding a seam before something actually varies across it. One adapter is a
   hypothetical seam; two adapters make it real.
 
-## Composition root and lifecycle
+## Entrypoints and lifecycle
 
-`Game` is constructed once. It is both the composition root and, for now, the scene
-and gameplay orchestrator.
+`main.mjs` boots once and creates one `Game`. `Game` is the scene and gameplay
+orchestrator; the composition root is the small module that constructs it.
 
 ```text
 page load
-  → three.min.js (classic script)
-  → module script imports the seams
-  → new Game()
+  → three.min.js (classic script in index.html)
+  → inline window.TDS_BUILD stamp (rewritten at deploy)
+  → main.mjs (module script)
+      register error and unhandledrejection handlers
+      boot()            idempotent; waits for DOMContentLoaded if still loading
+      → new Game() → window._game
+  → Game
       capture DOM nodes, build state and telemetry client
       createHud, createInputController, createAudioEngine({ sink })
       _wire()          bind buttons, input listeners, resize and online handlers
@@ -126,7 +143,7 @@ Key details:
 1. In [`bestiary.mjs`](../public/bestiary.mjs), add the kind to `KINDS`, add an
    `ENTITY_FACTORIES` entry returning the shared settings shape (`state`, `speed`,
    `catchRadius`, `grace`, `catchMessage`), and add a visual branch to the mesh factory.
-2. In [`index.html`](../public/index.html), map a spawn plan code in `SPAWN_FACTORY`,
+2. In [`game.mjs`](../public/game.mjs), map a spawn plan code in `SPAWN_FACTORY`,
    place the code in the floor plan inside `_spawnEntities`, and add a `RESPAWN_FACTORY`
    entry if the entity can respawn.
 3. Extend `tests/bestiary.test.mjs`. Touch no other module.
@@ -138,7 +155,7 @@ instead of adding kind branches to `Game`.
 
 1. In [`audio.mjs`](../public/audio.mjs), add the kind to `KINDS`; add a `levelFor` case
    only if the sound scales with distance.
-2. In [`index.html`](../public/index.html), add one method to the `sink` object passed to
+2. In [`game.mjs`](../public/game.mjs), add one method to the `sink` object passed to
    `createAudioEngine` and call `this.play('kind')` at the event site.
 3. Extend `tests/audio.test.mjs`. Ambience is the exception: it still starts from
    `_startAudio`, and the engine's `startAmbience` / `stop` are not wired to a Game sink
@@ -150,8 +167,9 @@ This is the least settled path today, because the level lifecycle is incomplete.
 
 What works now:
 
-1. Create the visual and its position in `buildFloor`, alongside the existing ward,
-   pistol, memento, and phone fields.
+1. Create the visual and its position in `buildFloor` in
+   [`game.mjs`](../public/game.mjs), alongside the existing ward, pistol, memento, and
+   phone fields.
 2. Add a distance check in `_game` with the item's radius and first-match ordering.
 3. Add a `tests/level.test.mjs` case only if the item is also described in the layout.
 
@@ -170,7 +188,8 @@ Target shape once the level lifecycle lands:
 ### Add a UI field
 
 1. Add the node to the markup in [`index.html`](../public/index.html).
-2. Add it to the `_el` map and map the value in `_sync`'s HUD view model.
+2. In [`game.mjs`](../public/game.mjs), add it to the `_el` map and map the value in
+   `_sync`'s HUD view model.
 3. Add one `writeText`, `writeStyle`, or `writeHidden` call in
    [`hud.mjs`](../public/hud.mjs) with a stable cache key.
 4. Add a fake-node assertion in `tests/hud.test.mjs`, then verify the field and any
@@ -186,13 +205,17 @@ Three layers, each with a different job:
 1. **Node tests — `node --test tests/*.test.mjs`.** No install, no browser, no network.
    Pure modules run in-process; adapters run against fakes (fake document, fake target,
    fake frame queue, fake sink, fake IndexedDB, injected clock and storage). Focused
-   runs work the same way, for example `node --test tests/level.test.mjs`.
+   runs work the same way, for example `node --test tests/level.test.mjs`. The full
+   suite is 189 tests.
 2. **Architecture fitness — `tests/architecture-fitness.test.mjs`.** Source-level
    checks that pure modules have no imports and no browser/Three.js/network/storage
    identifiers, that `Game` imports and calls the wired seams, that audio routes through
    `play(kind)`, that the bestiary owns entity lifecycle, and that `Game` does not branch
-   on enemy kind. Add one assertion when a seam's contract changes. These are regression
-   guards, not a sandbox.
+   on enemy kind. The entrypoint shell test also pins the split: `index.html` has no
+   inline `class Game` and loads `./main.mjs` as a module, `main.mjs` imports
+   `{ Game, showFatal }` from `game.mjs` and sets `window._game`, and `game.mjs` exports
+   both. Add one assertion when a seam's contract changes. These are regression guards,
+   not a sandbox.
 3. **Browser self-test — `/?test`.** Serve `public/` over HTTP and open the query
    parameter. The in-page harness asserts per-floor structure, phone-on-rooftop only,
    mementos, targeting, clamps, ascension, difficulty configs, pickups, and a render
@@ -207,10 +230,10 @@ restart and the audio mix. See below.
 
 | Gap | Where | Impact | Next step |
 | --- | --- | --- | --- |
-| Level lifecycle wired | [`level.mjs`](../public/level.mjs) owns collision, free-spot search, keep-aware disposal and pickup collection; [`buildFloor`](../public/index.html) still constructs the Three.js geometry and object meshes | Level rules are tested and single-sourced; the geometry builder remains the adapter-side implementation | Extract the floor geometry builder only if it becomes the next testability bottleneck |
+| Level lifecycle wired | [`level.mjs`](../public/level.mjs) owns collision, free-spot search, keep-aware disposal and pickup collection; [`buildFloor`](../public/game.mjs) still constructs the Three.js geometry and object meshes | Level rules are tested and single-sourced; the geometry builder remains the adapter-side implementation | Extract the floor geometry builder only if it becomes the next testability bottleneck |
 | HUD banner QA is manual | `writeBanner` in [`hud.mjs`](../public/hud.mjs) | Restarting a CSS animation requires clearing it, forcing layout, and re-applying it; a fake document cannot prove the banner re-animates | Browser checklist on every HUD change: banner shows, repeats restart, no layout shift |
-| Audio mix QA is manual | synth methods and `_startAudio` in [`index.html`](../public/index.html) | Only `play(kind)` routing and levels are unit tested; audibility, balance, and clipping are not | Listening checklist; implement the sink's `startAmbience` / `stop` when ambience moves behind the seam |
-| `Game` is still large | [`index.html`](../public/index.html) | Owns world building, combat, objectives, placement, run orchestration, and floor teardown; the root is the most likely place for new coupling | Extract only when a second adapter or a testable rule appears |
+| Audio mix QA is manual | synth methods and `_startAudio` in [`game.mjs`](../public/game.mjs) | Only `play(kind)` routing and levels are unit tested; audibility, balance, and clipping are not | Listening checklist; implement the sink's `startAmbience` / `stop` when ambience moves behind the seam |
+| `Game` is still large | [`game.mjs`](../public/game.mjs) | Owns world building, combat, objectives, placement, run orchestration, and floor teardown; the orchestrator is the most likely place for new coupling | Extract only when a second adapter or a testable rule appears |
 
 ## References
 
