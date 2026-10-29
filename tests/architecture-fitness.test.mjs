@@ -82,10 +82,12 @@ test('Game dispatches spawn codes through the bestiary module', () => {
     'Game must import the injected bestiary mesh adapter');
   assert.match(pageSource, /this\.bestiary=createBestiary\(/,
     'Game must construct its bestiary module');
-  assert.match(pageSource, /SPAWN_FACTORY=\{s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon'\}/,
-    'spawn plan codes must map to the five bestiary kinds');
-  assert.match(pageSource, /RESPAWN_FACTORY=\{sayona:'sayona',silbon:'silbon',duende:'duende'\}/,
+  assert.match(pageSource, /SPAWN_FACTORY=\{s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon',m:'manguanguas'\}/,
+    'spawn plan codes must map to all six bestiary kinds');
+  assert.match(pageSource, /RESPAWN_FACTORY=\{sayona:'sayona',silbon:'silbon',duende:'duende',manguanguas:'manguanguas'\}/,
     'respawn kinds must keep their existing factory mapping');
+  assert.match(pageSource, /4:\['l','m','d'\]/,
+    'floor 4 must introduce Manguanguas in place of one Sombra');
   assert.match(pageSource, /this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon'/,
     'spawn must use the bestiary and preserve the Silbon fallback');
   assert.match(pageSource, /this\.bestiary\.spawn\(RESPAWN_FACTORY\[t\]\|\|'sombra'/,
