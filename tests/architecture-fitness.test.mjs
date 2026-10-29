@@ -8,6 +8,8 @@ const metricsSource = await readFile(new URL('../public/runtime-metrics.mjs', im
 const hudSource = await readFile(new URL('../public/hud.mjs', import.meta.url), 'utf8');
 const loopSource = await readFile(new URL('../public/engine-loop.mjs', import.meta.url), 'utf8');
 const runStateSource = await readFile(new URL('../public/run-state.mjs', import.meta.url), 'utf8');
+const gameSource = await readFile(new URL('../public/game.mjs', import.meta.url), 'utf8');
+const mainSource = await readFile(new URL('../public/main.mjs', import.meta.url), 'utf8');
 const pageSource = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 
 function assertPureBrowserIndependent(source, moduleName) {
@@ -32,18 +34,18 @@ test('engine seams remain pure and the wired ones are imported', () => {
   assertPureBrowserIndependent(hudSource, 'hud.mjs');
   assertPureBrowserIndependent(loopSource, 'engine-loop.mjs');
   assertPureBrowserIndependent(runStateSource, 'run-state.mjs');
-  assert.match(pageSource, /from '\.\/hud\.mjs'/, 'Game must import the HUD seam');
-  assert.match(pageSource, /this\.hud\.render\(/, 'Game must render through the HUD seam');
-  assert.match(pageSource, /from '\.\/engine-loop\.mjs'/, 'Game must import the loop seam');
-  assert.match(pageSource, /this\._loop\.start\(\)/, 'Game must start the injected loop');
-  assert.match(pageSource, /from '\.\/run-state\.mjs'/, 'Game must import the run-state seam');
-  assert.match(pageSource, /this\._stepRun\(/, 'Game must advance survival rules through the run-state seam');
+  assert.match(gameSource, /from '\.\/hud\.mjs'/, 'Game must import the HUD seam');
+  assert.match(gameSource, /this\.hud\.render\(/, 'Game must render through the HUD seam');
+  assert.match(gameSource, /from '\.\/engine-loop\.mjs'/, 'Game must import the loop seam');
+  assert.match(gameSource, /this\._loop\.start\(\)/, 'Game must start the injected loop');
+  assert.match(gameSource, /from '\.\/run-state\.mjs'/, 'Game must import the run-state seam');
+  assert.match(gameSource, /this\._stepRun\(/, 'Game must advance survival rules through the run-state seam');
 });
 
 test('game opts into local metrics only through the metrics query parameter', () => {
-  assert.match(pageSource, /\.has\(['"]metrics['"]\)/);
-  assert.match(pageSource, /new RuntimeMetrics\(/);
-  assert.match(pageSource, /renderer\.info/);
+  assert.match(gameSource, /\.has\(['"]metrics['"]\)/);
+  assert.match(gameSource, /new RuntimeMetrics\(/);
+  assert.match(gameSource, /renderer\.info/);
 });
 
 test('runtime metrics retain a bounded rolling sample and report percentiles and renderer counts', () => {
@@ -85,61 +87,70 @@ test('runtime metrics ignore invalid frame durations', () => {
 });
 
 test('audio seam is wired behind play(kind)', () => {
-  assert.match(pageSource, /from '\.\/audio\.mjs'/);
-  assert.match(pageSource, /createAudioEngine/);
-  assert.match(pageSource, /this\.audio\.play\(kind/);
-  assert.match(pageSource, /play\(kind/);
-  assert.match(pageSource, /this\.play\('chime'\)/);
-  assert.match(pageSource, /this\.play\('vanish'\)/);
+  assert.match(gameSource, /from '\.\/audio\.mjs'/);
+  assert.match(gameSource, /createAudioEngine/);
+  assert.match(gameSource, /this\.audio\.play\(kind/);
+  assert.match(gameSource, /play\(kind/);
+  assert.match(gameSource, /this\.play\('chime'\)/);
+  assert.match(gameSource, /this\.play\('vanish'\)/);
 });
 
 test('Game dispatches spawn codes through the bestiary module', () => {
-  assert.match(pageSource, /import\s*\{[^}]*createBestiaryMeshFactory[^}]*\}\s*from '\.\/bestiary\.mjs'/,
+  assert.match(gameSource, /import\s*\{[^}]*createBestiaryMeshFactory[^}]*\}\s*from '\.\/bestiary\.mjs'/,
     'Game must import the injected bestiary mesh adapter');
-  assert.match(pageSource, /this\.bestiary=createBestiary\(/,
+  assert.match(gameSource, /this\.bestiary=createBestiary\(/,
     'Game must construct its bestiary module');
-  assert.match(pageSource, /SPAWN_FACTORY=\{s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon',m:'manguanguas'\}/,
+  assert.match(gameSource, /SPAWN_FACTORY=\{s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon',m:'manguanguas'\}/,
     'spawn plan codes must map to all six bestiary kinds');
-  assert.match(pageSource, /RESPAWN_FACTORY=\{sayona:'sayona',silbon:'silbon',duende:'duende',manguanguas:'manguanguas'\}/,
+  assert.match(gameSource, /RESPAWN_FACTORY=\{sayona:'sayona',silbon:'silbon',duende:'duende',manguanguas:'manguanguas'\}/,
     'respawn kinds must keep their existing factory mapping');
-  assert.match(pageSource, /4:\['l','m','d'\]/,
+  assert.match(gameSource, /4:\['l','m','d'\]/,
     'floor 4 must introduce Manguanguas in place of one Sombra');
-  assert.match(pageSource, /this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon'/,
+  assert.match(gameSource, /this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon'/,
     'spawn must use the bestiary and preserve the Silbon fallback');
-  assert.match(pageSource, /this\.bestiary\.spawn\(RESPAWN_FACTORY\[t\]\|\|'sombra'/,
+  assert.match(gameSource, /this\.bestiary\.spawn\(RESPAWN_FACTORY\[t\]\|\|'sombra'/,
     'respawn must use the bestiary and preserve the Sombra fallback');
-  assert.doesNotMatch(pageSource, /this\._make(?:Sombra|Sayona|Llorona|Silbon|Duende)\s*\(/,
+  assert.doesNotMatch(gameSource, /this\._make(?:Sombra|Sayona|Llorona|Silbon|Duende)\s*\(/,
     'enemy mesh factories must no longer live on Game');
 });
 
 test('Game delegates entity behavior and lifecycle without kind-specific branches', () => {
-  assert.match(pageSource, /this\.bestiary\.tick\(/, 'Game must delegate entity AI updates');
-  assert.match(pageSource, /this\.bestiary\.animate\(/, 'Game must delegate entity animation');
-  assert.match(pageSource, /this\.bestiary\.remove\(/, 'removed entities must leave the bestiary registry');
-  assert.match(pageSource, /this\.bestiary\.clear\(/, 'floor resets must clear the bestiary registry');
-  assert.match(pageSource, /this\._respawnQ\.push\(best\.kind\)/,
+  assert.match(gameSource, /this\.bestiary\.tick\(/, 'Game must delegate entity AI updates');
+  assert.match(gameSource, /this\.bestiary\.animate\(/, 'Game must delegate entity animation');
+  assert.match(gameSource, /this\.bestiary\.remove\(/, 'removed entities must leave the bestiary registry');
+  assert.match(gameSource, /this\.bestiary\.clear\(/, 'floor resets must clear the bestiary registry');
+  assert.match(gameSource, /this\._respawnQ\.push\(best\.kind\)/,
     'respawn queues must use the entity kind tag');
-  assert.doesNotMatch(pageSource, /(?:e|entity)\.(?:type|kind)\s*===?\s*['"](?:sombra|sayona|llorona|silbon|duende)['"]/,
+  assert.doesNotMatch(gameSource, /(?:e|entity)\.(?:type|kind)\s*===?\s*['"](?:sombra|sayona|llorona|silbon|duende)['"]/,
     'Game must not branch on enemy kind');
-  assert.doesNotMatch(pageSource, /switch\s*\(\s*(?:e|entity)\.(?:type|kind)\s*\)/,
+  assert.doesNotMatch(gameSource, /switch\s*\(\s*(?:e|entity)\.(?:type|kind)\s*\)/,
     'Game must not switch on enemy kind');
-  assert.match(pageSource, /entityCatch\(e\)\s*\{[^}]*e\.catchMessage/s,
+  assert.match(gameSource, /entityCatch\(e\)\s*\{[^}]*e\.catchMessage/s,
     'catch messaging must come from the bestiary entity');
 });
 
 test('Game synchronizes its entity list with bestiary lifecycle', () => {
-  assert.match(pageSource, /this\.entities\.push\(this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon',x,z\)\)/);
-  assert.match(pageSource, /this\.bestiary\.remove\(best\);\s*this\.entities=this\.entities\.filter\(x=>x!==best\)/);
-  assert.match(pageSource, /this\.bestiary\.clear\(\);\s*this\.entities=\[\];\s*this\._spawnEntities\(n,rng\)/);
-  assert.match(pageSource, /this\.bestiary\.spawn\(RESPAWN_FACTORY\[t\]\|\|'sombra',x,z\);[\s\S]*?this\.entities\.push\(e\)/);
+  assert.match(gameSource, /this\.entities\.push\(this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon',x,z\)\)/);
+  assert.match(gameSource, /this\.bestiary\.remove\(best\);\s*this\.entities=this\.entities\.filter\(x=>x!==best\)/);
+  assert.match(gameSource, /this\.bestiary\.clear\(\);\s*this\.entities=\[\];\s*this\._spawnEntities\(n,rng\)/);
+  assert.match(gameSource, /this\.bestiary\.spawn\(RESPAWN_FACTORY\[t\]\|\|'sombra',x,z\);[\s\S]*?this\.entities\.push\(e\)/);
 });
 
 test('spot checks delegate to the level module', () => {
-  assert.match(pageSource, /from '\.\/level\.mjs'/);
-  assert.match(pageSource, /return spotBlocked\(x, z, \{ boxes: this\.colliders/);
-  assert.match(pageSource, /this\.level\.resolve\(p,r\)/);
-  assert.match(pageSource, /findFreeSpot\(\{/);
-  assert.match(pageSource, /disposeGroup\(g\)/);
-  assert.match(pageSource, /this\.level\?\.pickupAt\(cam\.position\)/);
-  assert.match(pageSource, /createLevel\(\{ layout: \{ kind: 'room', colliders: this\.colliders, pickups \} \}\)/);
+  assert.match(gameSource, /from '\.\/level\.mjs'/);
+  assert.match(gameSource, /return spotBlocked\(x, z, \{ boxes: this\.colliders/);
+  assert.match(gameSource, /this\.level\.resolve\(p,r\)/);
+  assert.match(gameSource, /findFreeSpot\(\{/);
+  assert.match(gameSource, /disposeGroup\(g\)/);
+  assert.match(gameSource, /this\.level\?\.pickupAt\(cam\.position\)/);
+  assert.match(gameSource, /createLevel\(\{ layout: \{ kind: 'room', colliders: this\.colliders, pickups \} \}\)/);
+});
+
+test('index.html is a shell that boots the composition root', () => {
+  assert.match(pageSource, /window\.TDS_BUILD = 'v4'/);
+  assert.match(pageSource, /<script type="module"[^>]*src="\.\/main\.mjs"/);
+  assert.doesNotMatch(pageSource, /class Game\{/);
+  assert.match(mainSource, /import \{ Game, showFatal \} from '\.\/game\.mjs'/);
+  assert.match(mainSource, /window\._game = new Game\(\)/);
+  assert.match(gameSource, /export \{ Game, showFatal \}/);
 });

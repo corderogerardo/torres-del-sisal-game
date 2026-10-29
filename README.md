@@ -23,7 +23,7 @@ A first-person horror game set in the cursed *Torres del Sisal*, steeped in the 
 
 ## Tech
 
-`index.html` plus a locally vendored `three.min.js` — no build step, framework, or bundler. Core gameplay stays playable offline. Identity-free run summaries are saved by default unless a player opts out; only aggregate counts and duration percentiles are exposed. A durable IndexedDB outbox retries unsynchronized runs when connectivity returns. Rendering is [Three.js](https://threejs.org/) r128 (MIT, served from the repo so it can't break on a CDN or SRI hiccup); all sound is synthesized live with the Web Audio API.
+A page shell in `index.html`, a module entrypoint in `main.mjs`, and a locally vendored `three.min.js` — no build step, framework, or bundler. Core gameplay stays playable offline. Identity-free run summaries are saved by default unless a player opts out; only aggregate counts and duration percentiles are exposed. A durable IndexedDB outbox retries unsynchronized runs when connectivity returns. Rendering is [Three.js](https://threejs.org/) r128 (MIT, served from the repo so it can't break on a CDN or SRI hiccup); all sound is synthesized live with the Web Audio API.
 
 Originally prototyped in [Claude Design](https://claude.ai/design) (see `project/` for the original handoff bundle) and rebuilt as a standalone game.
 
@@ -31,7 +31,9 @@ Originally prototyped in [Claude Design](https://claude.ai/design) (see `project
 
 ```
 public/            # everything that gets deployed
-  index.html       # the whole game
+  index.html       # page shell: markup, CSS, build stamp, module script tag
+  main.mjs         # boot and composition root: error handlers, idempotent boot, window._game
+  game.mjs         # the Game class and remaining orchestration
   game-rules.mjs   # pure difficulty rules, independent of Three.js and the DOM
   runtime-metrics.mjs # bounded local frame-time and renderer metrics
   run-telemetry.mjs  # default-on identity-free run telemetry and aggregate metrics
