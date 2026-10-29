@@ -14,7 +14,7 @@ Runner: `node --test tests/*.test.mjs`; browser self-test: `/?test` (target exec
 - T1 (S1, route: inline, status: completed, evidence: `docs/research/capriles-manguanguas.md` written and read back with source links and caveats): preserve the public-source lore research.
 - T2 (S2-S3, route: inline, status: completed, evidence: focused Bestiary 17/17, architecture fitness 9/9, full Node suite 94/94; Risk: none — additive game content with deterministic tests): add the kind, mesh, settings, floor spawn, and respawn mapping.
 - T3 (S4, route: inline, status: completed for Node; browser/visual pending, commit: pending): observed RED against `89a3db1` (unknown kind and missing cup failures) and GREEN on the candidate; focused and full Node suites passed in the macOS sandbox.
-- T4 (S4, route: inline, status: in progress, commit/PR: pending): commit the work unit, push the stacked branches, and open draft PRs; the Manguanguas PR targets the T2 branch because its module is a hard dependency.
+- T4 (S4, route: inline, status: completed, commit: `741870c`; PRs: #3 draft and #4 draft): pushed the stacked branches and opened draft PRs for maintainer review; no merge was performed.
 
 ## Log
 
@@ -39,3 +39,4 @@ Runner: `node --test tests/*.test.mjs`; browser self-test: `/?test` (target exec
 - L19 (2026-10-29, user verbatim): "si hazlo"
 - L20 (2026-10-29): GitHub reads confirmed `main` as default, PRs #1 and #2 merged, no open PRs, and no issue-template paths in the target tree. The feature checks still require a compliant sandbox; T2's native intended-untracked capture is still unavailable.
 - L21 (2026-10-29, verification): `node --test tests/bestiary.test.mjs` 17/17 pass; `node --test tests/architecture-fitness.test.mjs` 9/9 pass; `node --test tests/*.test.mjs` 94/94 pass. RED was reproduced by running the new tests against a `git archive 89a3db1` copy: `RangeError: unknown bestiary kind: manguanguas` and the missing coffee-cup group failure. Commands ran under macOS `sandbox-exec` with network denied, writes restricted to an external scratch directory, cleared environment, and CPU/file/fd resource limits; host limits prevented explicit memory/process caps, which remains disclosed. Browser `/?test` and visual spawn verification were not run.
+- L22 (2026-10-29, delivery): committed `741870c feat(bestiary): add Manguanguas specter`, pushed `feature/architecture-review-deepening-resume` and `feature/capriles-manguanguas`, and opened draft PR #3 (base `main`) plus draft PR #4 (base PR #3 branch). Added `type:refactor` to #3 and `type:feature` to #4. No merge, force-push, or review approval was performed.
