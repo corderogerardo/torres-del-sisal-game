@@ -77,10 +77,43 @@ test('audio seam is wired behind play(kind)', () => {
   assert.match(pageSource, /this\.play\('vanish'\)/);
 });
 
-test('bestiary spawn sites dispatch through a factory map', () => {
-  assert.match(pageSource, /SPAWN_FACTORY=\{s:'_makeSombra'/);
-  assert.match(pageSource, /RESPAWN_FACTORY=\{sayona:'_makeSayona'/);
-  assert.doesNotMatch(pageSource, /else if\(t===/);
+test('Game dispatches spawn codes through the bestiary module', () => {
+  assert.match(pageSource, /import\s*\{[^}]*createBestiaryMeshFactory[^}]*\}\s*from '\.\/bestiary\.mjs'/,
+    'Game must import the injected bestiary mesh adapter');
+  assert.match(pageSource, /this\.bestiary=createBestiary\(/,
+    'Game must construct its bestiary module');
+  assert.match(pageSource, /SPAWN_FACTORY=\{s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon'\}/,
+    'spawn plan codes must map to the five bestiary kinds');
+  assert.match(pageSource, /RESPAWN_FACTORY=\{sayona:'sayona',silbon:'silbon',duende:'duende'\}/,
+    'respawn kinds must keep their existing factory mapping');
+  assert.match(pageSource, /this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon'/,
+    'spawn must use the bestiary and preserve the Silbon fallback');
+  assert.match(pageSource, /this\.bestiary\.spawn\(RESPAWN_FACTORY\[t\]\|\|'sombra'/,
+    'respawn must use the bestiary and preserve the Sombra fallback');
+  assert.doesNotMatch(pageSource, /this\._make(?:Sombra|Sayona|Llorona|Silbon|Duende)\s*\(/,
+    'enemy mesh factories must no longer live on Game');
+});
+
+test('Game delegates entity behavior and lifecycle without kind-specific branches', () => {
+  assert.match(pageSource, /this\.bestiary\.tick\(/, 'Game must delegate entity AI updates');
+  assert.match(pageSource, /this\.bestiary\.animate\(/, 'Game must delegate entity animation');
+  assert.match(pageSource, /this\.bestiary\.remove\(/, 'removed entities must leave the bestiary registry');
+  assert.match(pageSource, /this\.bestiary\.clear\(/, 'floor resets must clear the bestiary registry');
+  assert.match(pageSource, /this\._respawnQ\.push\(best\.kind\)/,
+    'respawn queues must use the entity kind tag');
+  assert.doesNotMatch(pageSource, /(?:e|entity)\.(?:type|kind)\s*===?\s*['"](?:sombra|sayona|llorona|silbon|duende)['"]/,
+    'Game must not branch on enemy kind');
+  assert.doesNotMatch(pageSource, /switch\s*\(\s*(?:e|entity)\.(?:type|kind)\s*\)/,
+    'Game must not switch on enemy kind');
+  assert.match(pageSource, /entityCatch\(e\)\s*\{[^}]*e\.catchMessage/s,
+    'catch messaging must come from the bestiary entity');
+});
+
+test('Game synchronizes its entity list with bestiary lifecycle', () => {
+  assert.match(pageSource, /this\.entities\.push\(this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon',x,z\)\)/);
+  assert.match(pageSource, /this\.bestiary\.remove\(best\);\s*this\.entities=this\.entities\.filter\(x=>x!==best\)/);
+  assert.match(pageSource, /this\.bestiary\.clear\(\);\s*this\.entities=\[\];\s*this\._spawnEntities\(n,rng\)/);
+  assert.match(pageSource, /this\.bestiary\.spawn\(RESPAWN_FACTORY\[t\]\|\|'sombra',x,z\);[\s\S]*?this\.entities\.push\(e\)/);
 });
 
 test('spot checks delegate to the level module', () => {
