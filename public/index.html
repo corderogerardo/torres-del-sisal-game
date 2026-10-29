@@ -209,6 +209,7 @@ import { spotBlocked } from './level.mjs';
 import { createHud } from './hud.mjs';
 import { createGameLoop } from './engine-loop.mjs';
 import { createInputController } from './input.mjs';
+import { createRunState, stepRunState } from './run-state.mjs';
 import { createBestiary, createBestiaryMeshFactory } from './bestiary.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
@@ -842,6 +843,7 @@ class Game {
     if(roof){ this.temptation=0; this.lifelines=this.mementos; }
     this.camera.position.set(0,1.7,-W/2+3); this.yaw=0; this.pitch=0;
     this.input?.resetLook();
+    this._initRunState(n);
   }
 
   _frame(dt=.016, now=performance.now()){
@@ -956,19 +958,69 @@ class Game {
     this.setState({hiddenView:true});
     this._banner('ESCONDIDO · NO RESPIRES');
   }
+  _initRunState(n=this.state.floor){
+    this.run=createRunState({
+      difficulty:this.diff(),
+      floor:n,
+      mementos:this.mementos,
+      timeLeft:this.timeLeft,
+      dread:this._dread,
+      stamina:this._stam,
+      battery:this.torchBattery,
+      torchOn:this.torchOn,
+      temptation:this.temptation,
+      lifelines:this.lifelines,
+      rescueT:this.rescueT,
+    });
+  }
+
+  _syncRunFromGame(){
+    if(!this.run||this.run.ended) return;
+    this.run={...this.run, floor:this.state.floor, mementos:this.mementos, timeLeft:this.timeLeft, dread:this._dread, stamina:this._stam, battery:this.torchBattery, torchOn:this.torchOn, temptation:this.temptation, lifelines:this.lifelines, rescueT:this.rescueT};
+  }
+
+  _stepRun(dt,input){
+    if(!this.run) this._initRunState(this.state.floor);
+    if(!this.run) return null;
+    const {state,events}=stepRunState(this.run,dt,input);
+    this.run=state;
+    this._dread=state.dread;
+    this._stam=state.stamina;
+    this.torchBattery=state.battery;
+    this.torchOn=state.torchOn;
+    this.timeLeft=state.timeLeft;
+    this.temptation=state.temptation;
+    this.lifelines=state.lifelines;
+    this.rescueT=state.rescueT;
+    return events;
+  }
+
+  _applyRunEvents(events){
+    if(!events) return false;
+    if(events.lifelineUsed){
+      const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0];
+      this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE');
+      this.play('chime');
+    }
+    if(events.carreton){
+      this._carreton=true;
+      this.play('hooves');
+      this._banner('OYES UN CARRETÓN EN LA CALLE');
+    }
+    if(events.forcedAscend){ this.ascendForced('LA POSESIÓN SE COMPLETÓ'); return true; }
+    if(events.jumpEnding){ this.jumpEnding(); return true; }
+    if(events.rescuedEnding){ this.rescuedEnding(); return true; }
+    return false;
+  }
+
   _game(dt){
     const cam=this.camera, df=this.diff(), roof=this.state.floor>=7;
     if(this.hidden){
       cam.position.set(this.hidden.x,1.55,this.hidden.z);
       cam.rotation.set(this.pitch,this.yaw,0,'YXZ');
-      this.torchBattery=Math.min(100,this.torchBattery+7*dt);
-      this._stam=Math.min(100,this._stam+11*dt);
-      let hd=this._dread; if(this._nearest<3.5) hd+=2.4*dt; else hd-=1.6*dt;
-      this._dread=Math.max(0,Math.min(100,hd));
-      if(roof) this.temptation=Math.max(0,this.temptation-9*dt);
+      const events=this._stepRun(dt,{hidden:true,nearest:this._nearest,rooftop:roof});
       this._updateEntities(dt); this._updateCritters(dt); this._tickRespawn(dt);
-      if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
-      if(!roof){ this.timeLeft-=dt; if(this.timeLeft<=0) return this.ascendForced('LA POSESIÓN SE COMPLETÓ'); if(this._dread>=100) return this.ascendForced('LA POSESIÓN SE COMPLETÓ'); }
+      this._applyRunEvents(events);
       return;
     }
     // pull toward windows (interior) or the ledge (rooftop)
@@ -986,54 +1038,37 @@ class Game {
     const lim=this.roomHalf-.6;
     cam.position.x=Math.max(-lim,Math.min(lim,cam.position.x)); cam.position.z=Math.max(-lim,Math.min(lim,cam.position.z));
     this._collide(cam.position,.38);
-    if(run&&(fwd||strafe)) this._stam=Math.max(0,this._stam-20*dt); else this._stam=Math.min(100,this._stam+11*dt);
-    if(this.torchOn){ this.torchBattery=Math.max(0,this.torchBattery-2.6*dt); if(this.torchBattery<=0) this.torchOn=false; } else this.torchBattery=Math.min(100,this.torchBattery+7*dt);
     cam.position.y=1.7+((fwd||strafe)?Math.sin(performance.now()*.006)*.03:0);
     const shake=this._dread>60?(this._dread-60)/40*.02:0;
     cam.rotation.set(this.pitch+(Math.random()-.5)*shake,this.yaw+(Math.random()-.5)*shake,0,'YXZ');
-    let dr=this._dread;
-    if(bd<3&&!roof) dr+=((3-bd)/3)*df.near*dt;
-    if((fwd||strafe)&&best&&!roof){ const dot=mvx*best.x+mvz*best.z; if(dot<-.2) dr-=1.2*dt*(-dot); }
-    dr+=(df.creep+timeFactor*.75)*dt;
-    this._dread=Math.max(0,Math.min(100,dr));
+    const moving=!!(fwd||strafe);
+    const windowDot=(moving&&best)?mvx*best.x+mvz*best.z:0;
+    const events=this._stepRun(dt,{hidden:false,nearest:this._nearest,windowDistance:bd,windowDot,moving,running:run&&moving,rooftop:roof,ledgeDistance:bd,rescueT:this.rescueT});
     this._updateEntities(dt); this._updateCritters(dt); this._tickRespawn(dt); this._updateBola(dt);
-    if(this._dread>=70&&!this._carreton){ this._carreton=true; this.play('hooves'); this._banner('OYES UN CARRETÓN EN LA CALLE'); }
     if(!this.wardCollected&&this.wardPos&&cam.position.distanceTo(this.wardPos)<1.7) this.collectWard();
     if(!this.pistolTaken&&this.pistolPos&&cam.position.distanceTo(this.pistolPos)<1.6) this.pickupPistol();
     if(this.mementoPos&&!this.mementoCollected&&cam.position.distanceTo(this.mementoPos)<1.7) this.collectMemento();
-    if(roof){ this._rooftop(dt,bd); return; }
+    if(roof){ this._rooftop(dt); this._applyRunEvents(events); return; }
     if(!this.phoneUsed&&this.phonePos&&cam.position.distanceTo(this.phonePos)<1.7) this.usePhone();
-    if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
-    this.timeLeft-=dt; if(this.timeLeft<=0) return this.ascendForced('LA POSESIÓN SE COMPLETÓ');
-    if(this._dread>=100) return this.ascendForced('LA POSESIÓN SE COMPLETÓ');
+    this._applyRunEvents(events);
   }
 
-  _rooftop(dt,ledgeDist){
+  _rooftop(dt){
     const cam=this.camera;
     if(!this.phoneUsed&&this.phonePos&&cam.position.distanceTo(this.phonePos)<1.8) this.usePhone();
-    // temptation rises with dread and nearness to the ledge; mementos slow it
-    const near=Math.max(0,(6-ledgeDist)/6);
-    const slow=1-Math.min(.66,this.mementos*.11);
-    let rise=(0.5 + this._dread/100*1.7 + near*1.6) * slow;
-    const holding=this.keys['Space'];
-    if(holding) rise-=5.2;
-    this.temptation=Math.max(0,Math.min(100,this.temptation+rise*dt));
-    // narration ticks
+    // temptation and rescue are advanced by the pure run-state module.
     this._narrT-=dt;
     let narr=this.state.resistNarr;
     if(this.temptation>50&&this._narrT<=0&&this.collected.length){ this._narrT=4.5; const idx=this.collected[Math.floor(Math.random()*this.collected.length)]; narr=MEMENTOS[idx].mem; }
     else if(this._narrT<=0){ narr = this.mementos?'' : 'No trajiste nada a qué aferrarte.'; }
     if(narr!==this.state.resistNarr) this.setState({resistNarr:narr});
-    // lifeline auto-catch
-    if(this.temptation>=92&&this.lifelines>0){ this.lifelines--; this.temptation=52; const idx=this.collected[this.lifelines]!==undefined?this.collected[this.lifelines]:this.collected[0]; this._banner(MEMENTOS[idx]?MEMENTOS[idx].name.toUpperCase()+' TE SOSTIENE':'ALGO TE SOSTIENE'); this.play('chime'); }
-    if(this.temptation>=100) return this.jumpEnding();
-    if(this.rescueT>0){ this.rescueT-=dt; if(this.rescueT<=0) return this.rescuedEnding(); }
   }
 
   collectWard(){
     this.wardCollected=true; this._dread=Math.max(0,this._dread-60); this.timeLeft=Math.min(this.diff().time,this.timeLeft+120);
     if(this.wardGroup) this.wardGroup.visible=false;
     this._banner('AMULETO · LA POSESIÓN RETROCEDE'); this.play('chime');
+    this._syncRunFromGame();
   }
   pickupPistol(){
     this.pistolTaken=true; if(this.pistolGroup) this.pistolGroup.visible=false;
@@ -1047,6 +1082,7 @@ class Game {
     const m=MEMENTOS[this.mementoIdx];
     this._banner(m.name.toUpperCase()); this.play('chime');
     this.setState({resistNarr:m.mem});
+    this._syncRunFromGame();
   }
   usePhone(){
     this.phoneUsed=true; this.callMade=true;
@@ -1054,6 +1090,7 @@ class Game {
     this.rescueT=this.diff().rescue;
     this._banner('LLAMADA CONECTADA · AGUANTA HASTA QUE LLEGUEN');
     this.play('ring');
+    this._syncRunFromGame();
   }
   _aimTarget(){
     if(!this.entities||!this.entities.length) return null;
@@ -1319,7 +1356,7 @@ class Game {
       // targeting: empty pistol never highlights
       this.ammo=0; ok('empty pistol: no aim target', this._aimTarget()===null);
       // temptation clamps to [0,100]
-      this.state.floor=7; this.buildFloor(7); this.temptation=999; this._rooftop(0.016, 5); ok('temptation clamps ≤100', this.temptation<=100 && this.temptation>=0);
+      this.state.floor=7; this.buildFloor(7); this.temptation=999; this._syncRunFromGame(); this._stepRun(0.016,{rooftop:true,ledgeDistance:5}); ok('temptation clamps ≤100', this.temptation<=100 && this.temptation>=0);
       // memento pickup increments the counter
       this.state.floor=1; this.collected=[]; this.mementos=0; this.mementoCollected=false; this.buildFloor(1);
       const m0=this.mementos; this.camera.position.copy(this.mementoPos); this._game(0.05); ok('memento pickup increments count', this.mementos===m0+1);

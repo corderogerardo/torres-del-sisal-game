@@ -36,6 +36,8 @@ test('engine seams remain pure and the wired ones are imported', () => {
   assert.match(pageSource, /this\.hud\.render\(/, 'Game must render through the HUD seam');
   assert.match(pageSource, /from '\.\/engine-loop\.mjs'/, 'Game must import the loop seam');
   assert.match(pageSource, /this\._loop\.start\(\)/, 'Game must start the injected loop');
+  assert.match(pageSource, /from '\.\/run-state\.mjs'/, 'Game must import the run-state seam');
+  assert.match(pageSource, /this\._stepRun\(/, 'Game must advance survival rules through the run-state seam');
 });
 
 test('game opts into local metrics only through the metrics query parameter', () => {
