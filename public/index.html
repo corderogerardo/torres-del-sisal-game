@@ -221,8 +221,8 @@ const MEMENTOS = [
   {name:'El rosario de tu abuela',  mem:'Cuentas gastadas de tanto rezar por ti.'},
 ];
 // Plan codes map to bestiary kinds; unknown spawn codes retain the Silbon fallback.
-const SPAWN_FACTORY={s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon'};
-const RESPAWN_FACTORY={sayona:'sayona',silbon:'silbon',duende:'duende'};
+const SPAWN_FACTORY={s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon',m:'manguanguas'};
+const RESPAWN_FACTORY={sayona:'sayona',silbon:'silbon',duende:'duende',manguanguas:'manguanguas'};
 
 class Game {
   constructor(){
@@ -516,7 +516,7 @@ class Game {
       }
       let sx=0,sz=0,g=0; do{ sx=(rng()-.5)*this.roomHalf*1.6; sz=(rng()-.5)*this.roomHalf*1.6; g++; }while(g<30&&Math.hypot(sx,sz-pz0)<9); return [sx,sz];
     };
-    let plan={1:['s'],2:['s','s'],3:['s','d','d'],4:['l','s','d'],5:['y','s','d'],6:['b','d','d','s'],7:['y','l','b','s']}[n]||['s'];
+    let plan={1:['s'],2:['s','s'],3:['s','d','d'],4:['l','m','d'],5:['y','s','d'],6:['b','d','d','s'],7:['y','l','b','s']}[n]||['s'];
     if(em<1&&plan.length>2) plan=plan.slice(0,plan.length-1);
     if(em>1.2) plan=plan.concat(['s']);
     for(const t of plan){ const [x,z]=spot();

@@ -66,11 +66,11 @@ function gameContext() {
   };
 }
 
-test('bestiary kinds expose the five-kind seam vocabulary frozen', () => {
-  for (const kind of ['sombra', 'sayona', 'llorona', 'silbon', 'duende']) {
+test('bestiary kinds expose the six-kind seam vocabulary frozen', () => {
+  for (const kind of ['sombra', 'sayona', 'llorona', 'silbon', 'duende', 'manguanguas']) {
     assert.ok(BESTIARY_KINDS.has(kind), `missing kind ${kind}`);
   }
-  assert.equal(BESTIARY_KINDS.size, 5);
+  assert.equal(BESTIARY_KINDS.size, 6);
   assert.ok(Object.isFrozen(BESTIARY_KINDS));
 });
 
@@ -98,6 +98,7 @@ test('spawn returns one uniform shape for every kind', () => {
     llorona: ['patrol', 5.4, undefined, 1.1],
     silbon: ['hunt', 3, undefined, 1.1],
     duende: ['patrol', 6.2, undefined, 0.85],
+    manguanguas: ['patrol', 4.4, undefined, 1.05],
   };
   for (const kind of BESTIARY_KINDS) {
     const entity = bestiary.spawn(kind, 3, 4);
@@ -111,6 +112,12 @@ test('spawn returns one uniform shape for every kind', () => {
     assert.equal(entity.speed.hunt, expected[kind][1]);
     assert.equal(entity.speed.lunge, expected[kind][2]);
     assert.equal(entity.catchRadius, expected[kind][3]);
+    if (kind === 'manguanguas') {
+      assert.equal(entity.speed.patrol, 0.9);
+      assert.equal(entity.senseRange, 7.5);
+      assert.equal(entity.grace, 3);
+      assert.equal(entity.catchMessage, 'EL MANGUANGUAS TE RETUVO EN LA CONVERSA');
+    }
     assert.ok(entity.lastSeen && typeof entity.lastSeen.set === 'function');
     assert.equal(typeof entity.tick, 'function');
     shapes.push(Object.keys(entity).sort());
@@ -118,6 +125,30 @@ test('spawn returns one uniform shape for every kind', () => {
   assert.equal(new Set(shapes.map((shape) => JSON.stringify(shape))).size, 1);
   assert.deepEqual(meshCalls.map(({ kind, x, z }) => [kind, x, z]),
     [...BESTIARY_KINDS].map((kind) => [kind, 3, 4]));
+});
+
+test('Manguanguas uses the shared pursuit and catch flow', () => {
+  const world = gameContext();
+  world.camera.position.set(5, 1.7, 0);
+  const bestiary = createBestiary({
+    context: world,
+    createVector3: vector3,
+    random: () => 0.5,
+    meshFactory: () => visualsFor('manguanguas'),
+  });
+  const manguanguas = bestiary.spawn('manguanguas', 0, 0);
+  manguanguas.grace = 0;
+
+  bestiary.tick(1000, 0.1);
+
+  assert.equal(manguanguas.state, 'hunt');
+  assert.ok(manguanguas.x > 0);
+  assert.equal(manguanguas.catchMessage, 'EL MANGUANGUAS TE RETUVO EN LA CONVERSA');
+
+  world.camera.position.set(manguanguas.x + 0.5, 1.7, manguanguas.z);
+  bestiary.tick(1100, 0.1);
+
+  assert.deepEqual(world.calls.filter(([kind]) => kind === 'catch'), [['catch', manguanguas]]);
 });
 
 test('tick routes to the injected per-kind behavior with (now, dt)', () => {
@@ -234,7 +265,7 @@ test('remove excludes an entity from subsequent bestiary ticks', () => {
   assert.deepEqual(calls, [[entity, 1000, 16]]);
 });
 
-test('mesh factory builds all five render groups from injected Three dependencies', () => {
+test('mesh factory builds all six render groups from injected Three dependencies', () => {
   class FakeVector3 {
     constructor(x = 0, y = 0, z = 0) { this.set(x, y, z); }
     set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
@@ -276,6 +307,7 @@ test('mesh factory builds all five render groups from injected Three dependencie
       SphereGeometry: FakeGeometry,
       PlaneGeometry: FakeGeometry,
       CylinderGeometry: FakeGeometry,
+      TorusGeometry: FakeGeometry,
       ConeGeometry: FakeGeometry,
       MeshBasicMaterial: FakeMaterial,
       DoubleSide: 2,
@@ -289,12 +321,16 @@ test('mesh factory builds all five render groups from injected Three dependencie
     faceTexture: (kind) => ({ kind, userData: { keep: true } }),
   });
 
+  let manguanguasGroup;
   for (const [index, kind] of [...BESTIARY_KINDS].entries()) {
     const visuals = meshFactory(kind, index + 1, index + 2);
     assert.equal(visuals.group.position.x, index + 1);
     assert.equal(visuals.group.position.z, index + 2);
     assert.ok(visuals.group.children.length > 0);
+    if (kind === 'manguanguas') manguanguasGroup = visuals.group;
   }
+  const coffeeCup = manguanguasGroup.children.find((child) => child.name === 'coffee-cup');
+  assert.equal(coffeeCup?.children.length, 3, 'Manguanguas must carry a cup, coffee, and handle');
   assert.equal(floor.children.length, BESTIARY_KINDS.size);
 });
 

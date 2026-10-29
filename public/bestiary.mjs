@@ -1,4 +1,4 @@
-const KINDS = ['sombra', 'sayona', 'llorona', 'silbon', 'duende'];
+const KINDS = ['sombra', 'sayona', 'llorona', 'silbon', 'duende', 'manguanguas'];
 
 export const BESTIARY_KINDS = Object.freeze(new Set(KINDS));
 
@@ -61,6 +61,18 @@ const ENTITY_FACTORIES = {
       grace: 2,
       fleeT: 0,
       catchMessage: 'LA TORRE TE ARRASTRÓ',
+    };
+  },
+  manguanguas(x, z, pull) {
+    return {
+      state: 'patrol',
+      phase: x * 0.35 + z * 0.65,
+      breathe: { spd: 1.1, amp: 0.025 },
+      speed: { patrol: 0.9, hunt: 2.2 * pull },
+      senseRange: 7.5,
+      catchRadius: 1.05,
+      grace: 3,
+      catchMessage: 'EL MANGUANGUAS TE RETUVO EN LA CONVERSA',
     };
   },
 };
@@ -192,6 +204,42 @@ export function createBestiaryMeshFactory({
       const eR = eL.clone(); eR.position.x = .055; g.add(eL); g.add(eR);
       addToFloor(g,x,z);
       return visualParts(g,{eyes:[eL,eR]});
+    },
+    manguanguas(x, z) {
+      const T = THREE, g = new T.Group(), [C, M] = getCaches();
+      if (!M.manguanguas) M.manguanguas = spectralMaterial({color:0x65727b,emissive:0x1a2530,emissiveIntensity:.45,transparent:true,opacity:.88,swayAmp:.055,swaySpeed:1.25,swayAnchorY:1.2,swayRange:1.8,rimColor:0xaac6d0,rimStrength:.45,rimPower:2.2,hem:{bottom:.03,top:1.25}});
+      if (!C.manguanguasBody) C.manguanguasBody = keepGeometry(lathe([[.03,-.1],[.22,.25],[.38,.72],[.32,1.25],[.23,1.72],[.13,1.95]],14));
+      if (!C.manguanguasHead) C.manguanguasHead = keepGeometry(new T.SphereGeometry(.21,12,10));
+      if (!C.manguanguasArm) C.manguanguasArm = keepGeometry(new T.SphereGeometry(.14,8,8));
+      if (!M.manguanguasCup) M.manguanguasCup = material({color:0x725039,emissive:0x241208,emissiveIntensity:.3});
+      if (!M.manguanguasCoffee) M.manguanguasCoffee = material({color:0x24150d,emissive:0x100803,emissiveIntensity:.12});
+      if (!C.manguanguasCup) C.manguanguasCup = keepGeometry(new T.CylinderGeometry(.09,.12,.22,10));
+      if (!C.manguanguasCoffee) C.manguanguasCoffee = keepGeometry(new T.CylinderGeometry(.075,.075,.012,10));
+      if (!C.manguanguasHandle) C.manguanguasHandle = keepGeometry(new T.TorusGeometry(.1,.022,6,12));
+
+      g.add(new T.Mesh(C.manguanguasBody,M.manguanguas));
+      const head = new T.Mesh(C.manguanguasHead,M.manguanguas);
+      head.position.y = 2.08;
+      g.add(head);
+      const arm = new T.Mesh(C.manguanguasArm,M.manguanguas);
+      arm.position.set(.28,1.38,.06);
+      arm.scale.set(1.55,.42,.7);
+      g.add(arm);
+
+      const coffeeCup = new T.Group();
+      coffeeCup.name = 'coffee-cup';
+      coffeeCup.position.set(.48,1.42,.18);
+      coffeeCup.add(new T.Mesh(C.manguanguasCup,M.manguanguasCup));
+      const coffee = new T.Mesh(C.manguanguasCoffee,M.manguanguasCoffee);
+      coffee.position.y = .11;
+      coffeeCup.add(coffee);
+      const handle = new T.Mesh(C.manguanguasHandle,M.manguanguasCup);
+      handle.position.set(.1,0,0);
+      coffeeCup.add(handle);
+      g.add(coffeeCup);
+
+      addToFloor(g,x,z);
+      return visualParts(g);
     },
   };
 
