@@ -137,4 +137,6 @@ test('Game synchronizes its entity list with bestiary lifecycle', () => {
 test('spot checks delegate to the level module', () => {
   assert.match(pageSource, /from '\.\/level\.mjs'/);
   assert.match(pageSource, /return spotBlocked\(x, z, \{ boxes: this\.colliders/);
+  assert.match(pageSource, /this\.level\.resolve\(p,r\)/);
+  assert.match(pageSource, /createLevel\(\{ layout: \{ kind: 'room', colliders: this\.colliders \} \}\)/);
 });

@@ -205,7 +205,7 @@ import { getDifficultyConfig } from './game-rules.mjs';
 import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
 import { createAudioEngine } from './audio.mjs';
-import { spotBlocked } from './level.mjs';
+import { spotBlocked, createLevel } from './level.mjs';
 import { createHud } from './hud.mjs';
 import { createGameLoop } from './engine-loop.mjs';
 import { createInputController } from './input.mjs';
@@ -669,6 +669,7 @@ class Game {
   }
 
   _collide(p,r){
+    if(this.level){ this.level.resolve(p,r); return; }
     for(const c of this.colliders||[]){
       const minx=c.x0-r, maxx=c.x1+r, minz=c.z0-r, maxz=c.z1+r;
       if(p.x>minx&&p.x<maxx&&p.z>minz&&p.z<maxz){
@@ -860,6 +861,7 @@ class Game {
     if(roof){ this.temptation=0; this.lifelines=this.mementos; }
     this.camera.position.set(0,1.7,-W/2+3); this.yaw=0; this.pitch=0;
     this.input?.resetLook();
+    this.level = createLevel({ layout: { kind: 'room', colliders: this.colliders } });
     this._initRunState(n);
   }
 

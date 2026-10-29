@@ -99,5 +99,32 @@ export function createLevel({ createBox, layout } = {}) {
     return null;
   }
 
-  return Object.freeze({ collides, pickupAt });
+  function resolve(p, r = 0) {
+    if (!p || typeof p !== 'object') return false;
+    if (!isFiniteNumber(p.x) || !isFiniteNumber(p.z)) return false;
+    const rawRadius = Number(r);
+    const radius = Number.isFinite(rawRadius) ? rawRadius : 0;
+    let moved = false;
+    for (const span of spans) {
+      const minx = span.x0 - radius;
+      const maxx = span.x1 + radius;
+      const minz = span.z0 - radius;
+      const maxz = span.z1 + radius;
+      if (p.x > minx && p.x < maxx && p.z > minz && p.z < maxz) {
+        const dxl = p.x - minx;
+        const dxr = maxx - p.x;
+        const dzl = p.z - minz;
+        const dzr = maxz - p.z;
+        const m = Math.min(dxl, dxr, dzl, dzr);
+        if (m === dxl) p.x = minx;
+        else if (m === dxr) p.x = maxx;
+        else if (m === dzl) p.z = minz;
+        else p.z = maxz;
+        moved = true;
+      }
+    }
+    return moved;
+  }
+
+  return Object.freeze({ collides, pickupAt, resolve });
 }
