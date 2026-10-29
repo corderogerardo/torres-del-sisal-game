@@ -206,6 +206,7 @@ import { RuntimeMetrics } from './runtime-metrics.mjs';
 import { createRunTelemetryClient, createRunSession, getRunTelemetryEnabled, setRunTelemetryEnabled } from './run-telemetry.mjs';
 import { AUDIO_KINDS } from './audio.mjs';
 import { spotBlocked } from './level.mjs';
+import { createBestiary, createBestiaryMeshFactory } from './bestiary.mjs';
 "use strict";
 window.TDS_BUILD = 'v4';
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
@@ -219,10 +220,9 @@ const MEMENTOS = [
   {name:'Un mensaje de voz',        mem:'«Vuelve a casa. Te estamos esperando.»'},
   {name:'El rosario de tu abuela',  mem:'Cuentas gastadas de tanto rezar por ti.'},
 ];
-// Uniform entity dispatch: plan code -> factory method. Unknown codes fall
-// back to _makeSombra, matching the old else-branch.
-const SPAWN_FACTORY={s:'_makeSombra',d:'_makeDuende',y:'_makeSayona',l:'_makeLlorona',b:'_makeSilbon'};
-const RESPAWN_FACTORY={sayona:'_makeSayona',silbon:'_makeSilbon',duende:'_makeDuende'};
+// Plan codes map to bestiary kinds; unknown spawn codes retain the Silbon fallback.
+const SPAWN_FACTORY={s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon'};
+const RESPAWN_FACTORY={sayona:'sayona',silbon:'silbon',duende:'duende'};
 
 class Game {
   constructor(){
@@ -470,6 +470,22 @@ class Game {
     const flash=new T.SpotLight(0xffeede,1.2,30,.6,.45,1.1); scene.add(flash); this.flash=flash;
     this.spotTarget=new T.Object3D(); scene.add(this.spotTarget); flash.target=this.spotTarget;
     this._initDust();
+    this.bestiary=createBestiary({
+      context:this,
+      createVector3:(x,y,z)=>new T.Vector3(x,y,z),
+      getSpawnPull:world=>world.diff().pull,
+      meshFactory:createBestiaryMeshFactory({
+        THREE:T,
+        getFloorGroup:()=>this.floorGroup,
+        getCaches:()=>this._ecache(),
+        keepGeometry:g=>this._keepGeo(g),
+        spectralMaterial:o=>this._spectralMat(o),
+        material:o=>this._mat(o),
+        lathe:(pairs,segments)=>this._lathe(pairs,segments),
+        faceTexture:kind=>this._faceTexture(kind),
+      }),
+    });
+    this.entities=[];
     this.buildFloor(1);
     this.clock=new T.Clock();
     const loop=()=>{ this._raf=requestAnimationFrame(loop); this._frame(); }; loop();
@@ -504,7 +520,7 @@ class Game {
     if(em<1&&plan.length>2) plan=plan.slice(0,plan.length-1);
     if(em>1.2) plan=plan.concat(['s']);
     for(const t of plan){ const [x,z]=spot();
-      this.entities.push(this[SPAWN_FACTORY[t]||'_makeSilbon'](x,z,em));
+      this.entities.push(this.bestiary.spawn(SPAWN_FACTORY[t]||'silbon',x,z));
     }
   }
   _themes(){ return [
@@ -519,185 +535,11 @@ class Game {
 
   _ecache(){ this._entGeo=this._entGeo||{}; this._entMat=this._entMat||{}; return [this._entGeo,this._entMat]; }
   _keepGeo(g){ g.userData.keep=true; return g; }
-  _makeSombra(x,z,em){
-    const T=window.THREE, g=new T.Group(), [C,M]=this._ecache();
-    // Wraith whose lower half dissolves into drifting smoke; red eyes flare when hunting.
-    if(!M.sombra) M.sombra=this._spectralMat({color:0x121826,emissive:0x2c3a56,emissiveIntensity:1.1,transparent:true,opacity:.95,swayAmp:.075,swaySpeed:1.7,swayAnchorY:1.35,swayRange:1.6,rimColor:0x5a80b4,rimStrength:.55,rimPower:2.0,hem:{bottom:.02,top:1.05}});
-    if(!C.sombra) C.sombra=this._keepGeo(this._lathe([[.02,-.15],[.26,.2],[.42,.65],[.34,1.15],[.19,1.55],[.11,1.9]],16));
-    if(!C.sombraHead) C.sombraHead=this._keepGeo(new T.SphereGeometry(.24,12,12));
-    if(!M.eyeRed){ M.eyeRed=this._mat({color:0xE63946,emissive:0xE63946,emissiveIntensity:2.2}); M.eyeRed.userData.keep=true; }
-    if(!C.eye) C.eye=this._keepGeo(new T.SphereGeometry(.045,8,8));
-    g.add(new T.Mesh(C.sombra,M.sombra));
-    const head=new T.Mesh(C.sombraHead,M.sombra); head.position.y=2.02; g.add(head);
-    const eL=new T.Mesh(C.eye,M.eyeRed); eL.position.set(-.08,2.06,.22);
-    const eR=eL.clone(); eR.position.x=.08; g.add(eL); g.add(eR);
-    g.position.set(x,0,z); this.floorGroup.add(g);
-    return { type:'sombra', group:g, eyes:[eL,eR], pos:new T.Vector3(x,0,z), state:'hunt', phase:x*.7+z*.3, breathe:{spd:1.5,amp:.02},
-      speed:{hunt:1.35*em,lunge:2.25*em}, catchRadius:1.15,
-      waypoint:null, lastSeen:new T.Vector3(x,0,z), searchT:0, grace:3 };
-  }
-  _makeSayona(x,z,em){
-    const T=window.THREE, g=new T.Group(), [C,M]=this._ecache();
-    // Beautiful woman in white — flowing gown + long black hair — whose face turns monstrous on the reveal.
-    if(!M.sayonaGown) M.sayonaGown=this._spectralMat({color:0xe4ded0,emissive:0x45433a,emissiveIntensity:.4,transparent:true,opacity:.94,swayAmp:.08,swaySpeed:1.4,swayAnchorY:1.6,swayRange:2.0,rimColor:0xd0d6d8,rimStrength:.5,rimPower:2.2,hem:{bottom:.02,top:1.0}});
-    if(!C.sayonaGown) C.sayonaGown=this._keepGeo(this._lathe([[.03,-.1],[.26,.35],[.44,1.0],[.34,1.7],[.2,2.2],[.13,2.5]],18));
-    if(!M.sayonaHair) M.sayonaHair=this._spectralMat({color:0x08090e,emissive:0x0c0c14,emissiveIntensity:.2,swayAmp:.05,swaySpeed:1.6,swayAnchorY:2.55,swayRange:1.5,rimColor:0x2a2438,rimStrength:.3,rimPower:2.6});
-    if(!C.sayonaHair) C.sayonaHair=this._keepGeo(this._lathe([[.14,2.6],[.3,2.1],[.29,1.4],[.16,.95]],14));
-    if(!C.head20) C.head20=this._keepGeo(new T.SphereGeometry(.2,14,14));
-    if(!C.faceP) C.faceP=this._keepGeo(new T.PlaneGeometry(.3,.36));
-    g.add(new T.Mesh(C.sayonaGown,M.sayonaGown));
-    const head=new T.Mesh(C.head20,M.sayonaGown); head.position.y=2.45; g.add(head);
-    const faceCalm=new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:this._faceTexture('sayonaCalm'),transparent:true})); faceCalm.position.set(0,2.46,.19); g.add(faceCalm);
-    const faceTrue=new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:this._faceTexture('sayonaTrue'),transparent:true,opacity:0})); faceTrue.position.set(0,2.46,.195); g.add(faceTrue);
-    g.add(new T.Mesh(C.sayonaHair,M.sayonaHair));
-    g.position.set(x,0,z); g.visible=false; this.floorGroup.add(g);
-    return { type:'sayona', group:g, eyes:null, faceCalm, faceTrue, pos:new T.Vector3(x,0,z), state:'idle', calm:true, revealT:0, phase:x*.4+z*.6,
-      speed:{hunt:2.55*em}, catchRadius:1.2, grace:3, delay:10+Math.random()*14, announced:false,
-      lastSeen:new T.Vector3(x,0,z), waypoint:null, searchT:0 };
-  }
-  _makeLlorona(x,z,em){
-    const T=window.THREE, g=new T.Group(), [C,M]=this._ecache();
-    // Weeping veiled woman; arms extend toward you when she hunts; cold wet spectral sheen.
-    if(!M.llorona) M.llorona=this._spectralMat({color:0xb8c0bb,emissive:0x333a34,emissiveIntensity:.5,transparent:true,opacity:.9,swayAmp:.07,swaySpeed:1.5,swayAnchorY:1.5,swayRange:1.9,rimColor:0x82b2b8,rimStrength:.55,rimPower:2.1,hem:{bottom:.02,top:1.1}});
-    if(!C.llorona) C.llorona=this._keepGeo(this._lathe([[.03,-.1],[.24,.3],[.4,.9],[.32,1.5],[.2,2.0],[.13,2.25]],16));
-    if(!M.lloronaVeil) M.lloronaVeil=this._spectralMat({color:0xd6dad2,emissive:0x3a3e38,emissiveIntensity:.45,transparent:true,opacity:.7,swayAmp:.05,swaySpeed:1.9,swayAnchorY:2.3,swayRange:1.5,rimColor:0xa0d0d4,rimStrength:.5,hem:{bottom:.7,top:2.3},side:T.DoubleSide});
-    if(!C.lloronaVeil) C.lloronaVeil=this._keepGeo(this._lathe([[.1,2.35],[.32,1.95],[.44,1.35]],14));
-    if(!C.head20b) C.head20b=this._keepGeo(new T.SphereGeometry(.2,12,12));
-    if(!C.arms) C.arms=this._keepGeo(new T.SphereGeometry(.24,10,10));
-    g.add(new T.Mesh(C.llorona,M.llorona));
-    const head=new T.Mesh(C.head20b,M.llorona); head.position.set(0,2.15,.06); head.rotation.x=.5; g.add(head);
-    g.add(new T.Mesh(C.lloronaVeil,M.lloronaVeil));
-    const arms=new T.Mesh(C.arms,M.llorona); arms.position.set(0,1.75,.22); arms.scale.set(1.3,.5,.8); arms.userData={z0:.22,rx0:0}; g.add(arms);
-    g.position.set(x,0,z); this.floorGroup.add(g);
-    return { type:'llorona', group:g, eyes:null, armReach:arms, pos:new T.Vector3(x,0,z), state:'patrol', phase:x*.5+z*.8,
-      speed:{patrol:.95,hunt:2.7*em}, senseRange:5.5, catchRadius:1.1, grace:3, sobT:1.5, wailed:false,
-      lastSeen:new T.Vector3(x,0,z), waypoint:null, searchT:0 };
-  }
-  _makeSilbon(x,z,em){
-    const T=window.THREE, g=new T.Group(), [C,M]=this._ecache();
-    // Very tall, gaunt spectre; wide-brim llanero hat; sack of bones; tattered lower half; hollow gaunt face.
-    if(!M.silbon) M.silbon=this._spectralMat({color:0x0d0f14,emissive:0x161a22,emissiveIntensity:.5,transparent:true,opacity:.96,swayAmp:.06,swaySpeed:1.3,swayAnchorY:2.0,swayRange:2.3,rimColor:0x3c4a56,rimStrength:.5,rimPower:2.0,hem:{bottom:.05,top:1.25}});
-    if(!C.silbon) C.silbon=this._keepGeo(this._lathe([[.03,-.1],[.15,.4],[.21,1.2],[.16,2.2],[.11,2.9],[.08,3.15]],14));
-    if(!C.silbonHead) C.silbonHead=this._keepGeo(new T.SphereGeometry(.17,12,12));
-    if(!C.faceP) C.faceP=this._keepGeo(new T.PlaneGeometry(.3,.36));
-    if(!M.silbonHat) M.silbonHat=this._spectralMat({color:0x8a7a55,emissive:0x2a2418,emissiveIntensity:.3,rimColor:0xaa9866,rimStrength:.25,rimPower:2.5});
-    if(!C.silbonCrown) C.silbonCrown=this._keepGeo(new T.CylinderGeometry(.15,.16,.22,12));
-    if(!C.silbonBrim) C.silbonBrim=this._keepGeo(new T.CylinderGeometry(.44,.44,.03,18));
-    if(!M.sack) M.sack=this._spectralMat({color:0x6b5a3f,emissive:0x1a140c,emissiveIntensity:.35,rimColor:0x8a7550,rimStrength:.3,rimPower:2.4});
-    if(!C.sack) C.sack=this._keepGeo(new T.SphereGeometry(.3,12,12));
-    g.add(new T.Mesh(C.silbon,M.silbon));
-    const head=new T.Mesh(C.silbonHead,M.silbon); head.position.y=3.15; g.add(head);
-    const face=new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:this._faceTexture('silbon'),transparent:true})); face.scale.set(.8,.8,.8); face.position.set(0,3.16,.15); g.add(face);
-    const crown=new T.Mesh(C.silbonCrown,M.silbonHat); crown.position.y=3.42; g.add(crown);
-    const brim=new T.Mesh(C.silbonBrim,M.silbonHat); brim.position.y=3.32; g.add(brim);
-    const sack=new T.Mesh(C.sack,M.sack); sack.position.set(.34,2.35,-.12); sack.scale.set(1,1.4,1); g.add(sack);
-    g.position.set(x,0,z); this.floorGroup.add(g);
-    return { type:'silbon', group:g, eyes:null, pos:new T.Vector3(x,0,z), state:'hunt', phase:x*.6+z*.4, lurch:{spd:1.1,amp:.028},
-      speed:{hunt:1.5*em}, catchRadius:1.1, grace:4, whistleT:.8,
-      lastSeen:new T.Vector3(x,0,z), waypoint:null, searchT:0 };
-  }
-  _makeDuende(x,z,em){
-    const T=window.THREE, g=new T.Group(), [C,M]=this._ecache();
-    // Small gnarled goblin, hunched, oversized red conical hat, glowing gold eyes, scampering jitter.
-    if(!M.duende) M.duende=this._spectralMat({color:0x4a3a28,emissive:0x281d12,emissiveIntensity:.55,swayAmp:.012,swaySpeed:6,swayAnchorY:.85,swayRange:.9,rimColor:0x8a6a2a,rimStrength:.3,rimPower:2.6});
-    if(!C.duendeBody) C.duendeBody=this._keepGeo(this._lathe([[.17,0],[.2,.16],[.17,.36],[.11,.55],[.14,.66]],12));
-    if(!C.duendeHead) C.duendeHead=this._keepGeo(new T.SphereGeometry(.15,10,10));
-    if(!M.duendeHat) M.duendeHat=this._spectralMat({color:0xE63946,emissive:0x7a1118,emissiveIntensity:.6,rimColor:0xE63946,rimStrength:.4,rimPower:2.3});
-    if(!C.duendeHat) C.duendeHat=this._keepGeo(new T.ConeGeometry(.18,.36,10));
-    if(!M.eyeGold){ M.eyeGold=this._mat({color:0xffd166,emissive:0xffd166,emissiveIntensity:2}); M.eyeGold.userData.keep=true; }
-    if(!C.eye) C.eye=this._keepGeo(new T.SphereGeometry(.045,8,8));
-    g.add(new T.Mesh(C.duendeBody,M.duende));
-    const head=new T.Mesh(C.duendeHead,M.duende); head.position.set(0,.7,.02); g.add(head);
-    const hat=new T.Mesh(C.duendeHat,M.duendeHat); hat.position.y=.94; hat.rotation.z=.14; g.add(hat);
-    const eL=new T.Mesh(C.eye,M.eyeGold); eL.scale.setScalar(.72); eL.position.set(-.055,.72,.12);
-    const eR=eL.clone(); eR.position.x=.055; g.add(eL); g.add(eR);
-    g.position.set(x,0,z); this.floorGroup.add(g);
-    return { type:'duende', group:g, eyes:[eL,eR], pos:new T.Vector3(x,0,z), state:'patrol', phase:x*.9+z*.5, breathe:{spd:9,amp:.03},
-      speed:{patrol:1.7,hunt:3.1*em}, senseRange:8, catchRadius:.85, grace:2,
-      lastSeen:new T.Vector3(x,0,z), waypoint:null, searchT:0, fleeT:0 };
-  }
-  // Group-level motion the GPU shader can't do: breathing, La Llorona's reach, La Sayona's face reveal,
-  // El Silbón's lurch, Duende jitter. Cloth/hair sway is handled on the GPU by _spectralMat. All fields optional.
-  _animateEntities(now,dt){
-    const t=now*.001, lerp=Math.min(1,dt*3);
-    for(const e of this.entities){
-      if(e.delay!==undefined&&e.delay>0) continue;
-      const g=e.group; if(!g||!g.visible) continue;
-      if(e.breathe){ const b=Math.sin(t*e.breathe.spd+(e.phase||0))*e.breathe.amp; g.scale.set(1+b,1+b*.6,1+b); }
-      if(e.lurch){ g.rotation.z=Math.sin(t*e.lurch.spd+(e.phase||0))*e.lurch.amp; }
-      if(e.armReach){ const target=(e.state==='hunt'||e.state==='lunge')?1:0; e.reachT=(e.reachT||0)+(target-(e.reachT||0))*Math.min(1,dt*2.2);
-        e.armReach.position.z=e.armReach.userData.z0+e.reachT*.45; e.armReach.rotation.x=e.armReach.userData.rx0-e.reachT*.6; }
-      if(e.type==='sayona'&&e.faceCalm&&e.faceTrue){ const target=e.calm?0:1; e.revealT=(e.revealT||0)+(target-(e.revealT||0))*Math.min(1,dt*1.6);
-        e.faceCalm.material.opacity=1-e.revealT; e.faceTrue.material.opacity=e.revealT;
-        if(e.jaw) e.jaw.position.y=e.jaw.userData.y0-e.revealT*.06; }
-    }
-  }
-  _updateEntities(dt){
-    this._nearest=1e9;
-    if(!this.entities||!this.entities.length) return;
-    const T=window.THREE, cam=this.camera, now=performance.now();
-    const fdir=this._fwd.set(0,0,-1).applyEuler(cam.rotation);
-    const torch=this.torchOn&&this.torchBattery>0;
-    for(const e of this.entities){
-      const dx=cam.position.x-e.pos.x, dz=cam.position.z-e.pos.z, dist=Math.hypot(dx,dz);
-      e.grace=Math.max(0,e.grace-dt);
-      if(e.delay!==undefined&&e.delay>0){ e.delay-=dt; continue; }
-      if(!e.group.visible) e.group.visible=true;
-      if(e.type==='sayona'&&!e.announced){ e.announced=true; this.play('scream'); this._banner('LA SAYONA TE HA VISTO'); this._dread=Math.min(100,this._dread+8); }
-      if(dist<this._nearest) this._nearest=dist;
-      const toEx=(e.pos.x-cam.position.x)/(dist||1), toEz=(e.pos.z-cam.position.z)/(dist||1);
-      const lit=torch&&dist<15&&(fdir.x*toEx+fdir.z*toEz)>.86;
-      const canSee=!this.hidden||e.sawHide;
-      let tx=e.pos.x, tz=e.pos.z, spd=0;
-      const seekLost=(baseSpd)=>{ e.state='search'; tx=e.lastSeen.x; tz=e.lastSeen.z; spd=baseSpd;
-        if(Math.hypot(e.pos.x-tx,e.pos.z-tz)<.9){ if(!e.waypoint||Math.hypot(e.pos.x-e.waypoint.x,e.pos.z-e.waypoint.z)<.7) e.waypoint=new T.Vector3((Math.random()-.5)*this.roomHalf*1.4,0,(Math.random()-.5)*this.roomHalf*1.4); tx=e.waypoint.x; tz=e.waypoint.z; } };
-      if(e.type==='sombra'){
-        if(canSee){ e.state=dist<2.6?'lunge':'hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.state==='lunge'?e.speed.lunge:e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z); }
-        else seekLost(e.speed.hunt*.75);
-        if(lit) spd=0;
-      } else if(e.type==='sayona'){
-        if(e.calm&&dist<7&&canSee){ e.calm=false; this.play('scream'); this._banner('LA SAYONA MUESTRA SU VERDADERO ROSTRO'); this._dread=Math.min(100,this._dread+10); }
-        if(canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.calm?e.speed.hunt*.55:e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z); }
-        else seekLost(e.speed.hunt*.6);
-      } else if(e.type==='llorona'){
-        e.sobT-=dt; if(e.sobT<=0){ e.sobT=5+Math.random()*3; this.play('sob', { dist }); }
-        if(canSee&&dist<e.senseRange&&e.grace<=0){
-          if(!e.wailed){ e.wailed=true; this.play('scream'); this._banner('LA LLORONA TE HA VISTO'); }
-          e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z);
-        } else if(e.state==='hunt'&&canSee&&dist<e.senseRange*1.8){ tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; }
-        else { e.state='patrol'; e.wailed=false; if(!e.waypoint||Math.hypot(e.pos.x-e.waypoint.x,e.pos.z-e.waypoint.z)<.7) e.waypoint=new T.Vector3((Math.random()-.5)*this.roomHalf*1.4,0,(Math.random()-.5)*this.roomHalf*1.4); tx=e.waypoint.x; tz=e.waypoint.z; spd=e.speed.patrol; }
-      } else if(e.type==='silbon'){
-        if(canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; e.lastSeen.set(cam.position.x,0,cam.position.z); }
-        else seekLost(e.speed.hunt*.7);
-        e.whistleT-=dt; if(e.whistleT<=0){ e.whistleT=4.6; if(dist<5) this.play('bones'); else this.play('whistle', { dist }); }
-      } else {
-        if(e.state==='flee'){ e.fleeT-=dt; tx=e.pos.x-(cam.position.x-e.pos.x); tz=e.pos.z-(cam.position.z-e.pos.z); spd=e.speed.hunt; if(e.fleeT<=0){ e.state='patrol'; e.waypoint=null; } }
-        else if(dist<e.senseRange&&e.grace<=0&&canSee){ e.state='hunt'; tx=cam.position.x; tz=cam.position.z; spd=e.speed.hunt; if(!e.gigT||now>e.gigT){ e.gigT=now+2600; this.play('giggle', { dist }); } }
-        else { if(!e.waypoint||Math.hypot(e.pos.x-e.waypoint.x,e.pos.z-e.waypoint.z)<.7) e.waypoint=new T.Vector3((Math.random()-.5)*this.roomHalf*1.4,0,(Math.random()-.5)*this.roomHalf*1.4); tx=e.waypoint.x; tz=e.waypoint.z; spd=e.speed.patrol; }
-      }
-      const mx=tx-e.pos.x, mz=tz-e.pos.z, ml=Math.hypot(mx,mz)||1;
-      if(spd>0){ e.pos.x+=mx/ml*spd*dt; e.pos.z+=mz/ml*spd*dt; }
-      const lim=this.roomHalf-.5; e.pos.x=Math.max(-lim,Math.min(lim,e.pos.x)); e.pos.z=Math.max(-lim,Math.min(lim,e.pos.z));
-      const bob=e.type==='duende'?Math.abs(Math.sin(now*.012+e.pos.x))*.12:Math.sin(now*.004+e.pos.x)*.05;
-      e.group.position.set(e.pos.x,bob,e.pos.z);
-      if(spd>0) e.group.rotation.y=Math.atan2(mx,mz);
-      const hunting=e.state==='hunt'||e.state==='lunge';
-      if(hunting&&!lit) this._dread=Math.min(100,this._dread+dt*(e.type==='sayona'?5.5:e.type==='llorona'?4.5:e.type==='duende'?3:e.type==='sombra'?(e.state==='lunge'?5.5:1.4):4.2));
-      if(e.eyes){ e.eyes[0].material.emissiveIntensity = lit?.7:hunting?2.6+Math.sin(now*.018)*.9:1.5; }
-      if(dist<e.catchRadius&&e.grace<=0&&canSee){
-        if(e.type==='duende'&&!this.hidden){
-          this._dread=Math.min(100,this._dread+14); this.play('giggle', { dist: 1 }); e.state='flee'; e.fleeT=2.6; e.grace=1.2;
-          const kx=dx/(dist||1), kz=dz/(dist||1), kl=this.roomHalf-.6;
-          cam.position.x=Math.max(-kl,Math.min(kl,cam.position.x+kx*1.4)); cam.position.z=Math.max(-kl,Math.min(kl,cam.position.z+kz*1.4));
-          this._banner('¡LOS DUENDES!');
-        } else { this.entityCatch(e); return; }
-      }
-    }
-  }
+  _animateEntities(now,dt){ this.bestiary.animate(now,dt); }
+  _updateEntities(dt){ this.bestiary.tick(performance.now(),dt); }
   entityCatch(e){
     if(this.state.phase!=='playing') return;
-    const B={sombra:'UNA SOMBRA TE POSEYÓ',sayona:'LA SAYONA TE ARRASTRÓ',silbon:'EL SILBÓN TE ECHÓ AL SACO',llorona:'LA LLORONA TE ACUNÓ'}[e.type]||'LA TORRE TE ARRASTRÓ';
-    this.play('despair'); this.ascendForced(B);
+    this.play('despair'); this.ascendForced(e.catchMessage||'LA TORRE TE ARRASTRÓ');
   }
 
   _spawnCritters(rng){
@@ -975,7 +817,7 @@ class Game {
       this.bola={g:bg,light:bl,core,mid,outer,halo,pos:new T.Vector3(-W*.3,2,W*.3),wp:null};
     } else this.bola=null;
 
-    this.entities=[]; this._spawnEntities(n,rng);
+    this.bestiary.clear(); this.entities=[]; this._spawnEntities(n,rng);
     this.wardCollected=false; this.timeLeft=roof?9999:this.diff().time;
     // rooftop finale init
     if(roof){ this.temptation=0; this.lifelines=this.mementos; }
@@ -1202,12 +1044,13 @@ class Game {
     }
     if(best){
       this.floorGroup.remove(best.group); this._disposeGroup(best.group);
+      this.bestiary.remove(best);
       this.entities=this.entities.filter(x=>x!==best);
       this._dread=Math.max(0,this._dread-10);
       this._banner('¡DISUELTO EN AGUA BENDITA!'); this.play('vanish');
       this._respawnQ=this._respawnQ||[];
       if(!this._respawnQ.length) this._respawnT=9+Math.random()*8;
-      this._respawnQ.push(best.type);
+      this._respawnQ.push(best.kind);
     }
   }
   _tickRespawn(dt){
@@ -1215,10 +1058,10 @@ class Game {
     this._respawnT-=dt;
     if(this._respawnT>0) return;
     this._respawnT=9+Math.random()*8;
-    const t=this._respawnQ.shift(), em=this.diff().pull, cam=this.camera;
+    const t=this._respawnQ.shift(), cam=this.camera;
     let x,z,gd=0;
     do{ x=(Math.random()-.5)*this.roomHalf*1.6; z=(Math.random()-.5)*this.roomHalf*1.6; gd++; }while(gd<30&&Math.hypot(x-cam.position.x,z-cam.position.z)<9);
-    const e=t==='sayona'||t==='silbon'||t==='duende'?this[RESPAWN_FACTORY[t]](x,z,em):this._makeSombra(x,z,em);
+    const e=this.bestiary.spawn(RESPAWN_FACTORY[t]||'sombra',x,z);
     if(e.delay!==undefined) e.delay=1.5;
     this.entities.push(e);
     this._banner('ALGO REGRESÓ'); this.play('scare');
@@ -1425,7 +1268,12 @@ class Game {
       ok('entities carry no point lights', entLights===0);
       // spectral entity redesign: each factory builds meshes and uses the spectral material
       this.state.floor=1; this.buildFloor(1);
-      const emx=this.diff().pull, spec={ sombra:this._makeSombra(2,2,emx), sayona:this._makeSayona(3,3,emx), llorona:this._makeLlorona(4,4,emx), silbon:this._makeSilbon(5,5,emx), duende:this._makeDuende(6,6,emx) };
+      this.bestiary.clear(); this.entities=[];
+      const spec={
+        sombra:this.bestiary.spawn('sombra',2,2), sayona:this.bestiary.spawn('sayona',3,3),
+        llorona:this.bestiary.spawn('llorona',4,4), silbon:this.bestiary.spawn('silbon',5,5), duende:this.bestiary.spawn('duende',6,6),
+      };
+      this.entities=Object.values(spec);
       Object.keys(spec).forEach(k=>ok('entity '+k+' builds meshes', spec[k].group.children.filter(o=>o.isMesh).length>0));
       let specMat=0; Object.values(spec).forEach(e=>e.group.traverse(o=>{ if(o.material&&o.material.userData&&o.material.userData.spectral) specMat++; }));
       ok('entities use spectral material', specMat>=5);
@@ -1433,7 +1281,7 @@ class Game {
       const sy=spec.sayona; sy.calm=false; sy.delay=0; sy.group.visible=true; this.entities=[sy];
       for(let i=0;i<50;i++) this._animateEntities(1000+i*16,0.016);
       ok('sayona reveal shows true face', sy.faceTrue.material.opacity>0.5 && sy.faceCalm.material.opacity<0.5);
-      Object.values(spec).forEach(e=>this.floorGroup.remove(e.group)); this.entities=[];
+      Object.values(spec).forEach(e=>this.floorGroup.remove(e.group)); this.bestiary.clear(); this.entities=[];
       // targeting: empty pistol never highlights
       this.ammo=0; ok('empty pistol: no aim target', this._aimTarget()===null);
       // temptation clamps to [0,100]
