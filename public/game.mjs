@@ -8,19 +8,11 @@ import { createGameLoop } from './engine-loop.mjs';
 import { createInputController } from './input.mjs';
 import { createRunState, stepRunState } from './run-state.mjs';
 import { createBestiary, createBestiaryMeshFactory } from './bestiary.mjs';
+import { MEMENTOS, SPAWN_FACTORY, RESPAWN_FACTORY, FLOOR_PLANS, THEMES } from './config.mjs';
+import { applyWardPickup, applyPistolPickup, applyMementoPickup } from './objectives.mjs';
+import { selectAimTarget } from './combat.mjs';
 "use strict";
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
-const MEMENTOS = [
-  {name:'La foto de tu madre',      mem:'Su risa en la cocina. El olor a café con leche.'},
-  {name:'El dibujo de tu hija',     mem:'«PAPÁ» escrito con crayón rojo, todo torcido.'},
-  {name:'La carta de un amigo',     mem:'«Aguanta, hermano. Voy en camino.»'},
-  {name:'El anillo de bodas',       mem:'«Hasta que la muerte…» — todavía no.'},
-  {name:'Un mensaje de voz',        mem:'«Vuelve a casa. Te estamos esperando.»'},
-  {name:'El rosario de tu abuela',  mem:'Cuentas gastadas de tanto rezar por ti.'},
-];
-// Plan codes map to bestiary kinds; unknown spawn codes retain the Silbon fallback.
-const SPAWN_FACTORY={s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon',m:'manguanguas'};
-const RESPAWN_FACTORY={sayona:'sayona',silbon:'silbon',duende:'duende',manguanguas:'manguanguas'};
 
 class Game {
   constructor(){
@@ -345,22 +337,14 @@ class Game {
       }
       let sx=0,sz=0,g=0; do{ sx=(rng()-.5)*this.roomHalf*1.6; sz=(rng()-.5)*this.roomHalf*1.6; g++; }while(g<30&&Math.hypot(sx,sz-pz0)<9); return [sx,sz];
     };
-    let plan={1:['s'],2:['s','s'],3:['s','d','d'],4:['l','m','d'],5:['y','s','d'],6:['b','d','d','s'],7:['y','l','b','s']}[n]||['s'];
+    let plan=FLOOR_PLANS[n]||['s'];
     if(em<1&&plan.length>2) plan=plan.slice(0,plan.length-1);
     if(em>1.2) plan=plan.concat(['s']);
     for(const t of plan){ const [x,z]=spot();
       this.entities.push(this.bestiary.spawn(SPAWN_FACTORY[t]||'silbon',x,z));
     }
   }
-  _themes(){ return [
-    {name:'EL VESTÍBULO',wall:0x474d54,floor:0x2d3238,fog:0x05070a,fogD:.044,accent:0x8fb3d9,props:9,tall:.25},
-    {name:'PISO INUNDADO',wall:0x39505a,floor:0x142830,fog:0x03151c,fogD:.056,accent:0x4a9ab0,props:7,tall:.15},
-    {name:'LA CAPILLA ROTA',wall:0x4c4238,floor:0x2a231c,fog:0x0a0704,fogD:.05,accent:0xd9a441,props:12,tall:.55},
-    {name:'LA GUARDERÍA',wall:0x54444c,floor:0x2e2329,fog:0x0a0509,fogD:.055,accent:0xc77d92,props:10,tall:.2},
-    {name:'SALA DE ESPEJOS',wall:0x3c4450,floor:0x1d222a,fog:0x05070d,fogD:.066,accent:0x9fc4e8,props:13,tall:.6},
-    {name:'EL MATADERO',wall:0x4c2f33,floor:0x271719,fog:0x0a0405,fogD:.07,accent:0xE63946,props:11,tall:.35},
-    {name:'LA AZOTEA',wall:0x272d36,floor:0x21252b,fog:0x060a12,fogD:.03,accent:0x8fb3d9,props:5,tall:.1}
-  ];}
+  _themes(){ return THEMES; }
 
   _ecache(){ this._entGeo=this._entGeo||{}; this._entMat=this._entMat||{}; return [this._entGeo,this._entMat]; }
   _keepGeo(g){ g.userData.keep=true; return g; }
@@ -866,20 +850,22 @@ class Game {
   }
 
   collectWard(){
-    this.wardCollected=true; this._dread=Math.max(0,this._dread-60); this.timeLeft=Math.min(this.diff().time,this.timeLeft+120);
+    this.wardCollected=true;
+    const next=applyWardPickup({dread:this._dread,timeLeft:this.timeLeft,timeMax:this.diff().time});
+    this._dread=next.dread; this.timeLeft=next.timeLeft;
     if(this.wardGroup) this.wardGroup.visible=false;
     this._banner('AMULETO · LA POSESIÓN RETROCEDE'); this.play('chime');
     this._syncRunFromGame();
   }
   pickupPistol(){
     this.pistolTaken=true; if(this.pistolGroup) this.pistolGroup.visible=false;
-    this.ammo=Math.min(8,this.ammo+4); this.setState({ammo:this.ammo});
+    this.ammo=applyPistolPickup({ammo:this.ammo}).ammo; this.setState({ammo:this.ammo});
     this._banner('AGUA BENDITA · +4 CARGAS'); this.play('chime');
   }
   collectMemento(){
     this.mementoCollected=true; if(this.mementoGroup) this.mementoGroup.visible=false;
     this.collected.push(this.mementoIdx); this.mementos=this.collected.length;
-    this._dread=Math.max(0,this._dread-10);
+    this._dread=applyMementoPickup({dread:this._dread}).dread;
     const m=MEMENTOS[this.mementoIdx];
     this._banner(m.name.toUpperCase()); this.play('chime');
     this.setState({resistNarr:m.mem});
@@ -895,26 +881,14 @@ class Game {
   }
   _aimTarget(){
     if(!this.entities||!this.entities.length) return null;
-    const T=window.THREE, cam=this.camera, fdir=this._fwd.set(0,0,-1).applyEuler(cam.rotation);
-    let best=null,bs=1e9;
-    for(const e of this.entities){
-      if(e.delay!==undefined&&e.delay>0) continue;
-      const dx=e.pos.x-cam.position.x, dz=e.pos.z-cam.position.z, d=Math.hypot(dx,dz);
-      if(d>13) continue; const dot=(fdir.x*dx+fdir.z*dz)/(d||1);
-      if(dot>.88&&d<bs){ best=e; bs=d; }
-    }
-    return best;
+    const cam=this.camera, fdir=this._fwd.set(0,0,-1).applyEuler(cam.rotation);
+    return selectAimTarget({cameraPosition:cam.position, forward:fdir, entities:this.entities, skipDelayed:true});
   }
   _shoot(){
     if(this.ammo<=0||!this.entities) return;
-    const T=window.THREE, cam=this.camera, fdir=this._fwd.set(0,0,-1).applyEuler(cam.rotation);
+    const cam=this.camera, fdir=this._fwd.set(0,0,-1).applyEuler(cam.rotation);
     this.ammo--; this.setState({ammo:this.ammo}); this.play('splash');
-    let best=null,bs=1e9;
-    for(const e of this.entities){
-      const dx=e.pos.x-cam.position.x, dz=e.pos.z-cam.position.z, d=Math.hypot(dx,dz);
-      if(d>13) continue; const dot=(fdir.x*dx+fdir.z*dz)/(d||1);
-      if(dot>.88&&d<bs){ best=e; bs=d; }
-    }
+    const best=selectAimTarget({cameraPosition:cam.position, forward:fdir, entities:this.entities, skipDelayed:false});
     if(best){
       this.floorGroup.remove(best.group); this._disposeGroup(best.group);
       this.bestiary.remove(best);
