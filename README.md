@@ -35,6 +35,9 @@ public/            # everything that gets deployed
   main.mjs         # boot and composition root: error handlers, idempotent boot, window._game
   game.mjs         # the Game class and remaining orchestration
   game-rules.mjs   # pure difficulty rules, independent of Three.js and the DOM
+  config.mjs       # frozen mementos, spawn maps, floor plans and themes
+  objectives.mjs   # pure ward, holy-water and memento pickup effects
+  combat.mjs       # pure aim-target selection
   runtime-metrics.mjs # bounded local frame-time and renderer metrics
   run-telemetry.mjs  # default-on identity-free run telemetry and aggregate metrics
   run-outbox.mjs  # IndexedDB queue for retrying unsynchronized run summaries
