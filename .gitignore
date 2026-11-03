@@ -18,3 +18,12 @@ node_modules/
 
 # Local Supabase project URL and public key configuration
 /public/supabase-config.js
+
+# Local code intelligence index (regenerate with codegraph init)
+.codegraph/
+
+# Playwright CLI local state
+.playwright-cli/
+
+# Auto-generated skill registry cache
+.atl/.skill-registry.cache.json

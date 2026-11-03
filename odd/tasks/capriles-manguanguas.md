@@ -1,3 +1,5 @@
+> **Historical record.** Session log kept for traceability, not a current plan or specification. Shipped design: [`docs/architecture.md`](../../docs/architecture.md).
+
 Objective: Add the satirical Manguanguas specter using source-backed meme references and existing Bestiary mechanics.
 Branch: `feature/capriles-manguanguas` stacked on `89a3db1`; delivery `ask-on-risk`, chain `stacked-to-main`; PR publication authorized to `corderogerardo/torres-del-sisal-game` with base `main`, no merge.
 Runner: `node --test tests/*.test.mjs`; browser self-test: `/?test` (target execution requires the approved OS-enforced sandbox).

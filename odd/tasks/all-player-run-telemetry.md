@@ -1,5 +1,7 @@
 # All-Player Run Telemetry
 
+> **Historical record.** Session log kept for traceability, not a current plan or specification. Shipped design: [`docs/architecture.md`](../../docs/architecture.md).
+
 Objective: Automatically record gameplay-run telemetry without a username or player ID, expose aggregate run metrics, and keep delivery non-blocking. Branch: `feature/architecture-review-deepening`. Delivery: `stacked-to-main` (forecast ~650 authored changed lines). Runner: `node --test tests/*.test.mjs`.
 
 ## Specs

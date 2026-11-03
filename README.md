@@ -27,6 +27,8 @@ A page shell in `index.html`, a module entrypoint in `main.mjs`, and a locally v
 
 Originally prototyped in [Claude Design](https://claude.ai/design) (see `project/` for the original handoff bundle) and rebuilt as a standalone game.
 
+Architecture, module boundaries, and extension recipes are documented in [`docs/architecture.md`](docs/architecture.md).
+
 ## Project layout
 
 ```
@@ -38,14 +40,22 @@ public/            # everything that gets deployed
   config.mjs       # frozen mementos, spawn maps, floor plans and themes
   objectives.mjs   # pure ward, holy-water and memento pickup effects
   combat.mjs       # pure aim-target selection
+  run-state.mjs    # pure survival and progression rules (dread, stamina, temptation)
+  engine-loop.mjs  # pure RAF scheduler with injected frame and clock adapters
+  hud.mjs          # HUD view model with diffed DOM writes
+  audio.mjs        # sound policy over an injected audio sink
+  level.mjs        # level description, collision, free-spot search, pickups
+  bestiary.mjs     # entity kinds, behavior, and procedural meshes
+  input.mjs        # keyboard and pointer-lock DOM adapter
   runtime-metrics.mjs # bounded local frame-time and renderer metrics
   run-telemetry.mjs  # default-on identity-free run telemetry and aggregate metrics
   run-outbox.mjs  # IndexedDB queue for retrying unsynchronized run summaries
   supabase-config.example.js # local setup template; real config is ignored
   three.min.js     # vendored Three.js r128 (MIT)
   _headers         # Cloudflare cache rules (no-store on HTML)
-.github/workflows/ # auto-deploy on push to main
+.github/workflows/ # auto-deploy on push to main; test gate on PRs and main
 deploy.sh          # one-command manual deploy
+docs/architecture.md # module map, dependency rules, extension recipes, known gaps
 tests/             # Node built-in tests and architecture fitness checks
 project/           # original Claude Design handoff bundle (reference only)
 supabase/migrations/ # local SQL migrations; remote changes require explicit authorization

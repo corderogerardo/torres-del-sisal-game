@@ -1,5 +1,7 @@
 # Public Run Records and Game Analytics
 
+> **Historical record.** Session log kept for traceability, not a current plan. ODD-3 is still open; check the Log for the current state. Shipped design: [`docs/architecture.md`](../../docs/architecture.md).
+
 ## Objective
 
 Add pseudonymous Supabase-backed game-run records for the static Three.js game, enabled by default with an opt-out. Show a public best-rescue leaderboard and aggregate play/outcome counts while keeping individual run histories private.
