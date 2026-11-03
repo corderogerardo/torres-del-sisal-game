@@ -8,6 +8,9 @@ const metricsSource = await readFile(new URL('../public/runtime-metrics.mjs', im
 const hudSource = await readFile(new URL('../public/hud.mjs', import.meta.url), 'utf8');
 const loopSource = await readFile(new URL('../public/engine-loop.mjs', import.meta.url), 'utf8');
 const runStateSource = await readFile(new URL('../public/run-state.mjs', import.meta.url), 'utf8');
+const configSource = await readFile(new URL('../public/config.mjs', import.meta.url), 'utf8');
+const objectivesSource = await readFile(new URL('../public/objectives.mjs', import.meta.url), 'utf8');
+const combatSource = await readFile(new URL('../public/combat.mjs', import.meta.url), 'utf8');
 const gameSource = await readFile(new URL('../public/game.mjs', import.meta.url), 'utf8');
 const mainSource = await readFile(new URL('../public/main.mjs', import.meta.url), 'utf8');
 const pageSource = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -34,6 +37,9 @@ test('engine seams remain pure and the wired ones are imported', () => {
   assertPureBrowserIndependent(hudSource, 'hud.mjs');
   assertPureBrowserIndependent(loopSource, 'engine-loop.mjs');
   assertPureBrowserIndependent(runStateSource, 'run-state.mjs');
+  assertPureBrowserIndependent(configSource, 'config.mjs');
+  assertPureBrowserIndependent(objectivesSource, 'objectives.mjs');
+  assertPureBrowserIndependent(combatSource, 'combat.mjs');
   assert.match(gameSource, /from '\.\/hud\.mjs'/, 'Game must import the HUD seam');
   assert.match(gameSource, /this\.hud\.render\(/, 'Game must render through the HUD seam');
   assert.match(gameSource, /from '\.\/engine-loop\.mjs'/, 'Game must import the loop seam');
@@ -100,11 +106,19 @@ test('Game dispatches spawn codes through the bestiary module', () => {
     'Game must import the injected bestiary mesh adapter');
   assert.match(gameSource, /this\.bestiary=createBestiary\(/,
     'Game must construct its bestiary module');
-  assert.match(gameSource, /SPAWN_FACTORY=\{s:'sombra',d:'duende',y:'sayona',l:'llorona',b:'silbon',m:'manguanguas'\}/,
-    'spawn plan codes must map to all six bestiary kinds');
-  assert.match(gameSource, /RESPAWN_FACTORY=\{sayona:'sayona',silbon:'silbon',duende:'duende',manguanguas:'manguanguas'\}/,
-    'respawn kinds must keep their existing factory mapping');
-  assert.match(gameSource, /4:\['l','m','d'\]/,
+  assert.match(gameSource, /from '\.\/config\.mjs'/,
+    'Game must import the shared config module');
+  assert.match(configSource, /s: 'sombra'/, 'spawn plan must include Sombra');
+  assert.match(configSource, /d: 'duende'/, 'spawn plan must include Duende');
+  assert.match(configSource, /y: 'sayona'/, 'spawn plan must include Sayona');
+  assert.match(configSource, /l: 'llorona'/, 'spawn plan must include Llorona');
+  assert.match(configSource, /b: 'silbon'/, 'spawn plan must include Silbon');
+  assert.match(configSource, /m: 'manguanguas'/, 'spawn plan must include Manguanguas');
+  assert.match(configSource, /sayona: 'sayona'/, 'respawn map must include Sayona');
+  assert.match(configSource, /silbon: 'silbon'/, 'respawn map must include Silbon');
+  assert.match(configSource, /duende: 'duende'/, 'respawn map must include Duende');
+  assert.match(configSource, /manguanguas: 'manguanguas'/, 'respawn map must include Manguanguas');
+  assert.match(configSource, /4: \['l', 'm', 'd'\]/,
     'floor 4 must introduce Manguanguas in place of one Sombra');
   assert.match(gameSource, /this\.bestiary\.spawn\(SPAWN_FACTORY\[t\]\|\|'silbon'/,
     'spawn must use the bestiary and preserve the Silbon fallback');
@@ -112,6 +126,15 @@ test('Game dispatches spawn codes through the bestiary module', () => {
     'respawn must use the bestiary and preserve the Sombra fallback');
   assert.doesNotMatch(gameSource, /this\._make(?:Sombra|Sayona|Llorona|Silbon|Duende)\s*\(/,
     'enemy mesh factories must no longer live on Game');
+});
+
+test('Game uses pure pickup effects and the combat selector', () => {
+  assert.match(gameSource, /from '\.\/objectives\.mjs'/);
+  assert.match(gameSource, /applyWardPickup\(/);
+  assert.match(gameSource, /applyPistolPickup\(/);
+  assert.match(gameSource, /applyMementoPickup\(/);
+  assert.match(gameSource, /from '\.\/combat\.mjs'/);
+  assert.match(gameSource, /selectAimTarget\(/);
 });
 
 test('Game delegates entity behavior and lifecycle without kind-specific branches', () => {

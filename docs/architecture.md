@@ -22,6 +22,9 @@ and `public/game.mjs` owns the `Game` class and the remaining orchestration.
 | [`public/main.mjs`](../public/main.mjs) | Composition root | None exported; installs error handlers and sets `window._game` once | `Game`, `showFatal`, DOM, `window` | `architecture-fitness.test.mjs` |
 | [`public/game.mjs`](../public/game.mjs) | Orchestrator | `Game`, `showFatal` | Modules, DOM, `window.THREE` | `architecture-fitness.test.mjs`; browser `/?test` |
 | [`public/game-rules.mjs`](../public/game-rules.mjs) | Pure | `getDifficultyConfig(name)` | — | `game-rules.test.mjs` |
+| [`public/config.mjs`](../public/config.mjs) | Pure data | `MEMENTOS`, `SPAWN_FACTORY`, `RESPAWN_FACTORY`, `FLOOR_PLANS`, `THEMES` (all frozen) | — | `config.test.mjs` |
+| [`public/objectives.mjs`](../public/objectives.mjs) | Pure | `applyWardPickup`, `applyPistolPickup`, `applyMementoPickup` | — | `objectives.test.mjs` |
+| [`public/combat.mjs`](../public/combat.mjs) | Pure | `selectAimTarget(options)` | — | `combat.test.mjs` |
 | [`public/runtime-metrics.mjs`](../public/runtime-metrics.mjs) | Pure | `RuntimeMetrics(capacity)`, `record(ms, rendererInfo)`, `snapshot()` | — | `architecture-fitness.test.mjs` |
 | [`public/run-state.mjs`](../public/run-state.mjs) | Pure | `createRunState(options)`, `stepRunState(state, dt, frame)` → `{ state, events }` | Resolved difficulty config; frame observations as data | `run-state.test.mjs` |
 | [`public/engine-loop.mjs`](../public/engine-loop.mjs) | Pure scheduler | `createGameLoop(options)` → `{ start, stop, isRunning, tick }` | `requestFrame`, `cancelFrame`, `now`, `update`, `render` | `engine-loop.test.mjs` |
@@ -50,6 +53,9 @@ public/index.html  (page shell: markup, CSS, TDS_BUILD, script tags)
 └── main.mjs       (composition root: error handlers, boot, window._game)
     └── game.mjs   (Game class: DOM, THREE, render, orchestration)
         ├── game-rules.mjs        pure
+        ├── config.mjs            pure frozen data
+        ├── objectives.mjs        pure pickup effects
+        ├── combat.mjs            pure aim selection
         ├── runtime-metrics.mjs   pure
         ├── run-state.mjs         pure
         ├── engine-loop.mjs       pure scheduler
@@ -206,7 +212,7 @@ Three layers, each with a different job:
    Pure modules run in-process; adapters run against fakes (fake document, fake target,
    fake frame queue, fake sink, fake IndexedDB, injected clock and storage). Focused
    runs work the same way, for example `node --test tests/level.test.mjs`. The full
-   suite is 189 tests.
+   suite is 203 tests.
 2. **Architecture fitness — `tests/architecture-fitness.test.mjs`.** Source-level
    checks that pure modules have no imports and no browser/Three.js/network/storage
    identifiers, that `Game` imports and calls the wired seams, that audio routes through
@@ -233,7 +239,7 @@ restart and the audio mix. See below.
 | Level lifecycle wired | [`level.mjs`](../public/level.mjs) owns collision, free-spot search, keep-aware disposal and pickup collection; [`buildFloor`](../public/game.mjs) still constructs the Three.js geometry and object meshes | Level rules are tested and single-sourced; the geometry builder remains the adapter-side implementation | Extract the floor geometry builder only if it becomes the next testability bottleneck |
 | HUD banner QA is manual | `writeBanner` in [`hud.mjs`](../public/hud.mjs) | Restarting a CSS animation requires clearing it, forcing layout, and re-applying it; a fake document cannot prove the banner re-animates | Browser checklist on every HUD change: banner shows, repeats restart, no layout shift |
 | Audio mix QA is manual | synth methods and `_startAudio` in [`game.mjs`](../public/game.mjs) | Only `play(kind)` routing and levels are unit tested; audibility, balance, and clipping are not | Listening checklist; implement the sink's `startAmbience` / `stop` when ambience moves behind the seam |
-| `Game` is still large | [`game.mjs`](../public/game.mjs) | Owns world building, combat, objectives, placement, run orchestration, and floor teardown; the orchestrator is the most likely place for new coupling | Extract only when a second adapter or a testable rule appears |
+| `Game` is still large | [`game.mjs`](../public/game.mjs) | Owns world/floor geometry, rendering orchestration, combat consequences, floor lifecycle and run orchestration; the orchestrator is the most likely place for new coupling | Extract only when a second adapter or a testable rule appears |
 
 ## References
 
