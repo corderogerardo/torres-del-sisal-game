@@ -38,6 +38,7 @@ Locate the behavior with a grep or a CodeGraph query, then read the surrounding 
 | HUD view model with diffed writes | `public/hud.mjs` |
 | Difficulty rules (pure) | `public/game-rules.mjs` |
 | Frozen run data, spawn maps, floor plans, themes | `public/config.mjs` |
+| Procedural surface detail and bump maps | `public/textures.mjs` |
 | Pure pickup effects (ward, holy water, memento) | `public/objectives.mjs` |
 | Pure aim-target selection | `public/combat.mjs` |
 | Frame-time and renderer metrics | `public/runtime-metrics.mjs` |

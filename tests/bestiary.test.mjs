@@ -309,6 +309,7 @@ test('mesh factory builds all six render groups from injected Three dependencies
       CylinderGeometry: FakeGeometry,
       TorusGeometry: FakeGeometry,
       ConeGeometry: FakeGeometry,
+      BoxGeometry: FakeGeometry,
       MeshBasicMaterial: FakeMaterial,
       DoubleSide: 2,
     },

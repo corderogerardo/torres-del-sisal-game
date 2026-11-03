@@ -23,6 +23,7 @@ and `public/game.mjs` owns the `Game` class and the remaining orchestration.
 | [`public/game.mjs`](../public/game.mjs) | Orchestrator | `Game`, `showFatal` | Modules, DOM, `window.THREE` | `architecture-fitness.test.mjs`; browser `/?test` |
 | [`public/game-rules.mjs`](../public/game-rules.mjs) | Pure | `getDifficultyConfig(name)` | — | `game-rules.test.mjs` |
 | [`public/config.mjs`](../public/config.mjs) | Pure data | `MEMENTOS`, `SPAWN_FACTORY`, `RESPAWN_FACTORY`, `FLOOR_PLANS`, `THEMES` (all frozen) | — | `config.test.mjs` |
+| [`public/textures.mjs`](../public/textures.mjs) | Pure data | `TEXTURE_KINDS`, `detailField`, `bumpField`, `createTextureSet` | Canvas factory at the call site | `textures.test.mjs` |
 | [`public/objectives.mjs`](../public/objectives.mjs) | Pure | `applyWardPickup`, `applyPistolPickup`, `applyMementoPickup` | — | `objectives.test.mjs` |
 | [`public/combat.mjs`](../public/combat.mjs) | Pure | `selectAimTarget(options)` | — | `combat.test.mjs` |
 | [`public/runtime-metrics.mjs`](../public/runtime-metrics.mjs) | Pure | `RuntimeMetrics(capacity)`, `record(ms, rendererInfo)`, `snapshot()` | — | `architecture-fitness.test.mjs` |

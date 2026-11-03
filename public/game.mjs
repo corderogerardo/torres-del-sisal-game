@@ -11,6 +11,7 @@ import { createBestiary, createBestiaryMeshFactory } from './bestiary.mjs';
 import { MEMENTOS, SPAWN_FACTORY, RESPAWN_FACTORY, FLOOR_PLANS, THEMES } from './config.mjs';
 import { applyWardPickup, applyPistolPickup, applyMementoPickup } from './objectives.mjs';
 import { selectAimTarget } from './combat.mjs';
+import { createTextureSet } from './textures.mjs';
 "use strict";
 function showFatal(msg){ var d=document.getElementById('fatal'); if(!d){ d=document.createElement('div'); d.id='fatal'; d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#E63946;color:#fff;font:600 12px/1.5 ui-monospace,monospace;padding:10px 14px;white-space:pre-wrap;max-height:50vh;overflow:auto;pointer-events:auto'; document.body.appendChild(d);} d.textContent='⚠ Torres del Sisal '+window.TDS_BUILD+' — '+msg; }
 
@@ -198,11 +199,54 @@ class Game {
   _box(w,h,d,mat,x,y,z){ const T=window.THREE; const m=new T.Mesh(new T.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); return m; }
   // Lit matte material: per-fragment Phong with the specular highlight killed — looks identical to the old
   // roughness:1/metalness:0 MeshStandardMaterial but skips the expensive PBR BRDF. Ignores roughness/metalness keys.
-  _mat(o){ const T=window.THREE; return new T.MeshPhongMaterial({ color:o.color,
+  _mat(o){ const T=window.THREE; const m=new T.MeshPhongMaterial({ color:o.color,
     emissive: o.emissive!==undefined?o.emissive:0x000000,
     emissiveIntensity: o.emissiveIntensity!==undefined?o.emissiveIntensity:1,
     specular:0x000000, shininess:0,
-    transparent:!!o.transparent, opacity:o.opacity!==undefined?o.opacity:1 }); }
+    transparent:!!o.transparent, opacity:o.opacity!==undefined?o.opacity:1 });
+    if(o.tex){
+      const t=this._surfaceTex(o.tex,o.texRepeat||[1,1]);
+      m.map=t.map; m.bumpMap=t.bumpMap; m.bumpScale=o.bumpScale!==undefined?o.bumpScale:.02;
+    }
+    return m; }
+  // Soft radial shadow so entities stop looking pasted onto the floor.
+  _addContactShadow(group){
+    if(!group) return;
+    const T=window.THREE;
+    if(!this._shadowMat){
+      const c=document.createElement('canvas'); c.width=c.height=128;
+      const ctx=c.getContext('2d');
+      const grad=ctx.createRadialGradient(64,64,3,64,64,62);
+      grad.addColorStop(0,'rgba(0,0,0,.62)'); grad.addColorStop(.55,'rgba(0,0,0,.32)'); grad.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=grad; ctx.fillRect(0,0,128,128);
+      const tex=new T.CanvasTexture(c); tex.userData={keep:true};
+      this._shadowMat=new T.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,fog:true});
+      this._shadowMat.userData.keep=true;
+    }
+    if(!this._shadowGeo){ this._shadowGeo=new T.PlaneGeometry(1.7,1.7); this._shadowGeo.userData.keep=true; }
+    const m=new T.Mesh(this._shadowGeo,this._shadowMat);
+    m.rotation.x=-Math.PI/2; m.position.y=.02; m.renderOrder=2;
+    group.add(m);
+  }
+
+  // Neutral procedural detail, tinted by the material colour. Generated once per
+  // kind/repeat pair and shared, so the whole floor costs a handful of textures.
+  _surfaceTex(kind,repeat){
+    this._texCache=this._texCache||{};
+    const key=kind+'|'+repeat[0]+'x'+repeat[1];
+    if(this._texCache[key]) return this._texCache[key];
+    const T=window.THREE, set=createTextureSet({kind,size:256,seed:17});
+    const upload=(field)=>{
+      const c=document.createElement('canvas'); c.width=field.width; c.height=field.height;
+      const ctx=c.getContext('2d'); const img=ctx.createImageData(field.width,field.height);
+      img.data.set(field.data); ctx.putImageData(img,0,0);
+      const tex=new T.CanvasTexture(c);
+      tex.wrapS=tex.wrapT=T.RepeatWrapping; tex.repeat.set(repeat[0],repeat[1]);
+      tex.anisotropy=4; tex.userData={keep:true}; tex.needsUpdate=true; return tex;
+    };
+    const out={map:upload(set.detail),bumpMap:upload(set.bump)};
+    this._texCache[key]=out; return out;
+  }
   // Spectral material: matte Phong patched (onBeforeCompile) with GPU cloth-sway (vertex),
   // fresnel rim-glow + optional hem fade (fragment). One shared uTime drives all of them.
   // Cheaper than the PBR we removed; keeps the no-MeshStandardMaterial perf guard green.
@@ -342,6 +386,7 @@ class Game {
     if(em>1.2) plan=plan.concat(['s']);
     for(const t of plan){ const [x,z]=spot();
       this.entities.push(this.bestiary.spawn(SPAWN_FACTORY[t]||'silbon',x,z));
+      this._addContactShadow(this.entities[this.entities.length-1].group);
     }
   }
   _themes(){ return THEMES; }
@@ -445,9 +490,9 @@ class Game {
     const th=this._themes()[n-1]||this._themes()[0]; this.theme=th;
     if(this.scene.fog) this.scene.fog.color.set(th.fog);
     this.scene.background.set(roof?0x090f1c:th.fog); this._fogBase=th.fogD*.72;
-    const cMat=this._mat({color:th.wall,roughness:1,metalness:0});
-    const fMat=this._mat({color:th.floor,roughness:1,metalness:0});
-    const rMat=this._mat({color:0x7a4a30,roughness:.7,metalness:.4});
+    const cMat=this._mat({color:th.wall,roughness:1,metalness:0,tex:'plaster',texRepeat:[3,1],bumpScale:.01});
+    const fMat=this._mat({color:th.floor,roughness:1,metalness:0,tex:'wood',texRepeat:[8,8],bumpScale:.014});
+    const rMat=this._mat({color:0x7a4a30,roughness:.7,metalness:.4,tex:'wood',texRepeat:[3,2],bumpScale:.012});
     g.add(this._box(W,.4,W,fMat,0,-.2,0));
     this.colliders=[];
     // Semilla por piso + azar por visita: cada pasada por el mismo nivel baraja
@@ -493,7 +538,7 @@ class Game {
     } else {
       // --- ceiling ---
       for(let i=-1;i<=1;i++) g.add(this._box(W,.25,.6,cMat,0,H,i*5));
-      g.add(this._box(W,.12,W,this._mat({color:th.wall,roughness:1}),0,H+.06,0));
+      g.add(this._box(W,.12,W,this._mat({color:th.wall,roughness:1,tex:'plaster',texRepeat:[3,3],bumpScale:.008}),0,H+.06,0));
       // perimeter walls with door gaps
       g.add(this._box(W,H,.4,cMat,0,H/2,-W/2)); this.colliders.push({x0:-W/2,x1:W/2,z0:-W/2-.2,z1:-W/2+.2});
       g.add(this._box(W*.62,H,.4,cMat,-W*.19,H/2,W/2));
