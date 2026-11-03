@@ -94,6 +94,8 @@ node --test tests/*.test.mjs
 
 `public/game-rules.mjs` and `public/runtime-metrics.mjs` must remain free of imports and browser, Three.js, network, or storage APIs. The architecture fitness test enforces this boundary.
 
+To prove the game still responds to the player, run `node scripts/playthrough.mjs`: it needs a local Chrome, drives the real game over the DevTools protocol, and exits non-zero if the camera or mouse look stops responding.
+
 Append `?metrics` to the game URL to opt into local diagnostics. The console reports frame-time p50/p95/p99 in milliseconds, average FPS, draw calls, and Three.js geometry/texture counts every five seconds. It keeps at most 300 frame intervals in memory; it makes no network requests and stores no data. Treat p95 frame time above 20 ms or average FPS below 50 as a local investigation signal, not a CI failure. Draw-call, geometry, and texture counts are observations rather than universal thresholds because procedural floors have different scene contents. Metrics are omitted unless the query parameter is present.
 
 Automatic Supabase run telemetry, its local setup, aggregate metrics, and provider-log caveats are documented in [`SUPABASE_RUN_RECORDS.md`](SUPABASE_RUN_RECORDS.md).

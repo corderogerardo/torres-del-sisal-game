@@ -11,9 +11,10 @@ package manager, no install step.
 | One test file | `node --test tests/level.test.mjs` |
 | Serve locally | `cd public && python3 -m http.server 8000` |
 | Browser self-test | open `http://localhost:8000/?test` |
+| Browser playthrough | `node scripts/playthrough.mjs` |
 | Deploy | push to `main`, or `./deploy.sh` |
 
-The suite is 203 tests on Node's built-in runner. It needs no dependencies and no
+The suite is 214 tests on Node's built-in runner. It needs no dependencies and no
 network access.
 
 ## Read this first
