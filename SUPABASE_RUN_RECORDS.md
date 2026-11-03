@@ -35,6 +35,14 @@ The game automatically records run summaries by default and shows a notice befor
 - Run results are community-reported and unverified. The game client controls gameplay and can alter a reported outcome or duration; the database validates shape, bounds, run lifecycle, and duplicate client run IDs, but does not provide anti-cheat verification. The anonymous public RPC can also be abused to submit fabricated runs; the run UUID prevents retry duplicates, not deliberate metric manipulation.
 - Runs are not linked to a player, so there is no individual player deletion action. The migration does not delete historical rows and has no automatic retention/expiry job. Supabase provider logs remain separate from game-owned telemetry; review and configure provider log retention in the project.
 
+## Legacy data retention
+
+- Historical `public.player_preferences`, `public.run_records`, and `public.public_rescue_entries` rows are retained indefinitely by default. No migration, scheduled job, or automatic expiry deletes them.
+- Browser roles (`anon` and `authenticated`) cannot reach those tables, and there is no user-facing read, delete, or erasure control.
+- Deletion is irreversible and manual. It requires explicit owner authorization and is never part of a migration.
+- When authorized, the owner runs `supabase/retention/purge-legacy-run-data.sql` by hand. The script lives outside `supabase/migrations/`, so `supabase db push` never applies it; it reports row counts first, then deletes in foreign-key-safe order inside one transaction.
+- Revisit the decision on a user erasure request, project closure or migration to another provider, or a legal or policy requirement. The identity-free `public.game_run_telemetry` rows are outside this purge.
+
 ## Local verification
 
 Run the static Node checks without installing packages:
