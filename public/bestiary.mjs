@@ -97,6 +97,7 @@ function visualParts(group, parts = {}) {
     faceTrue: parts.faceTrue ?? null,
     armReach: parts.armReach ?? null,
     jaw: parts.jaw ?? null,
+    irises: parts.irises ?? null,
   };
 }
 
@@ -159,7 +160,7 @@ export function createBestiaryMeshFactory({
     };
     add(geo('neck', () => new T.CylinderGeometry(.055, .072, shape.neckTop - shape.neckBottom, 8)),
       0, (shape.neckTop + shape.neckBottom) / 2, 0);
-    add(geo('jaw', () => new T.SphereGeometry(.16, 10, 8)), 0, shape.jawY, .05, 0, .92, .6, .86, skinMat);
+    add(geo('jaw', () => new T.SphereGeometry(.16, 10, 8)), 0, shape.jawY, .02, 0, .95, .5, .8, skinMat);
     for (const side of [-1, 1]) {
       const a1 = side * shape.bend;
       const px = side * shape.shoulderX;
@@ -204,15 +205,34 @@ export function createBestiaryMeshFactory({
       if (!M.sayonaSkin) M.sayonaSkin = spectralMaterial({color:0xb8a693,emissive:0x2b2622,emissiveIntensity:.25,rimColor:0xd8c8b4,rimStrength:.3,rimPower:3.0});
       if (!C.sayonaHair) C.sayonaHair = keepGeometry(lathe([[.14,2.6],[.3,2.1],[.29,1.4],[.16,.95]],14));
       if (!C.head20) C.head20 = keepGeometry(new T.SphereGeometry(.2,14,14));
+      if (!C.eyeBall) C.eyeBall = keepGeometry(new T.SphereGeometry(.034,10,10));
+      if (!C.eyeIris) C.eyeIris = keepGeometry(new T.SphereGeometry(.017,8,8));
+      if (!C.eyePupil) C.eyePupil = keepGeometry(new T.SphereGeometry(.008,6,6));
+      if (!M.sayonaSclera) { M.sayonaSclera = material({color:0xd6cbb8,emissive:0x2a2620,emissiveIntensity:.3}); M.sayonaSclera.userData.keep = true; }
+      if (!M.sayonaIrisCalm) { M.sayonaIrisCalm = material({color:0x1a1420}); M.sayonaIrisCalm.userData.keep = true; }
+      if (!M.sayonaIrisTrue) { M.sayonaIrisTrue = material({color:0xE63946,emissive:0xE63946,emissiveIntensity:2.0}); M.sayonaIrisTrue.userData.keep = true; }
+      if (!M.sayonaPupil) { M.sayonaPupil = material({color:0x050308}); M.sayonaPupil.userData.keep = true; }
       addHumanoid(g,T,[C],M.sayonaGown,{id:'sayona',shoulderY:2.04,shoulderX:.18,upper:.36,fore:.33,bend:.12,neckBottom:2.12,neckTop:2.3,jawY:2.36},M.sayonaSkin);
       if (!C.faceP) C.faceP = keepGeometry(new T.PlaneGeometry(.3,.36));
       g.add(new T.Mesh(C.sayonaGown,M.sayonaGown));
       const head = new T.Mesh(C.head20,M.sayonaSkin); head.position.y = 2.45; g.add(head);
       const faceCalm = new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:faceTexture('sayonaCalm'),transparent:true})); faceCalm.position.set(0,2.46,.19); g.add(faceCalm);
       const faceTrue = new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:faceTexture('sayonaTrue'),transparent:true,opacity:0})); faceTrue.position.set(0,2.46,.195); g.add(faceTrue);
+      const irises = [];
+      for (const side of [-1, 1]) {
+        const ex = side * .072, ey = 2.49, ez = .172;
+        const sclera = new T.Mesh(C.eyeBall, M.sayonaSclera);
+        sclera.position.set(ex, ey, ez); sclera.scale.set(1, 1.15, .72); g.add(sclera);
+        const iris = new T.Mesh(C.eyeIris, M.sayonaIrisCalm);
+        iris.position.set(ex, ey, ez + .024);
+        iris.userData.calmMat = M.sayonaIrisCalm; iris.userData.trueMat = M.sayonaIrisTrue;
+        g.add(iris); irises.push(iris);
+        const pupil = new T.Mesh(C.eyePupil, M.sayonaPupil);
+        pupil.position.set(ex, ey, ez + .036); g.add(pupil);
+      }
       g.add(new T.Mesh(C.sayonaHair,M.sayonaHair));
       addToFloor(g,x,z); g.visible = false;
-      return visualParts(g,{faceCalm,faceTrue});
+      return visualParts(g,{faceCalm,faceTrue,irises});
     },
     llorona(x, z) {
       const T = THREE, g = new T.Group(), [C, M] = getCaches();
@@ -244,9 +264,20 @@ export function createBestiaryMeshFactory({
       if (!C.silbonBrim) C.silbonBrim = keepGeometry(new T.CylinderGeometry(.44,.44,.03,18));
       if (!M.sack) M.sack = spectralMaterial({color:0x6b5a3f,emissive:0x1a140c,emissiveIntensity:.35,rimColor:0x8a7550,rimStrength:.3,rimPower:2.4});
       if (!C.sack) C.sack = keepGeometry(new T.SphereGeometry(.3,12,12));
+      if (!C.eyeBall) C.eyeBall = keepGeometry(new T.SphereGeometry(.034,10,10));
+      if (!C.eyeIris) C.eyeIris = keepGeometry(new T.SphereGeometry(.017,8,8));
+      if (!M.silbonSclera) { M.silbonSclera = material({color:0x14141a,emissive:0x05050a,emissiveIntensity:.3}); M.silbonSclera.userData.keep = true; }
+      if (!M.silbonIris) { M.silbonIris = material({color:0xc9a94d,emissive:0xc9a94d,emissiveIntensity:1.8}); M.silbonIris.userData.keep = true; }
       g.add(new T.Mesh(C.silbon,M.silbon));
       const head = new T.Mesh(C.silbonHead,M.silbonSkin); head.position.y = 3.15; g.add(head);
       const face = new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:faceTexture('silbon'),transparent:true})); face.scale.set(.8,.8,.8); face.position.set(0,3.16,.15); g.add(face);
+      for (const side of [-1, 1]) {
+        const ex = side * .048, ey = 3.15, ez = .138;
+        const sclera = new T.Mesh(C.eyeBall, M.silbonSclera);
+        sclera.position.set(ex, ey, ez); sclera.scale.set(.85, .95, .6); g.add(sclera);
+        const iris = new T.Mesh(C.eyeIris, M.silbonIris);
+        iris.position.set(ex, ey, ez + .016); iris.scale.set(.9, .9, 1); g.add(iris);
+      }
       const crown = new T.Mesh(C.silbonCrown,M.silbonHat); crown.position.y = 3.42; g.add(crown);
       const brim = new T.Mesh(C.silbonBrim,M.silbonHat); brim.position.y = 3.32; g.add(brim);
       const sack = new T.Mesh(C.sack,M.sack); sack.position.set(.34,2.35,-.12); sack.scale.set(1,1.4,1); g.add(sack);
@@ -355,6 +386,7 @@ export function createBestiary({
       faceTrue: visuals.faceTrue ?? null,
       armReach: visuals.armReach ?? null,
       jaw: visuals.jaw ?? null,
+      irises: visuals.irises ?? null,
       pos,
       state: settings.state,
       phase: settings.phase,
@@ -614,6 +646,10 @@ export function createBestiary({
       entity.revealT = (entity.revealT || 0) + (target - (entity.revealT || 0)) * Math.min(1, dt * 1.6);
       entity.faceCalm.material.opacity = 1 - entity.revealT;
       entity.faceTrue.material.opacity = entity.revealT;
+      if (entity.irises) {
+        const trueOn = entity.revealT > 0.5;
+        for (const iris of entity.irises) iris.material = trueOn ? iris.userData.trueMat : iris.userData.calmMat;
+      }
       if (entity.jaw) entity.jaw.position.y = entity.jaw.userData.y0 - entity.revealT * 0.06;
     }
   }
