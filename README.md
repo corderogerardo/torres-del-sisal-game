@@ -38,6 +38,7 @@ public/            # everything that gets deployed
   game.mjs         # the Game class and remaining orchestration
   game-rules.mjs   # pure difficulty rules, independent of Three.js and the DOM
   config.mjs       # frozen mementos, spawn maps, floor plans and themes
+  textures.mjs     # procedural plaster/wood/tile/fabric detail and bump maps (no image files)
   objectives.mjs   # pure ward, holy-water and memento pickup effects
   combat.mjs       # pure aim-target selection
   run-state.mjs    # pure survival and progression rules (dread, stamina, temptation)

@@ -100,6 +100,24 @@ function visualParts(group, parts = {}) {
   };
 }
 
+// Vertical cloth folds: displace each lathe ring radially by angle. Geometries
+// from a test double have no attributes, so they pass through unchanged.
+function foldGeometry(geo, amount = 0.03, freq = 9) {
+  const p = geo?.attributes?.position;
+  if (!p || typeof geo.computeVertexNormals !== 'function') return geo;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i);
+    const r = Math.hypot(x, z);
+    if (r < 1e-4) continue;
+    const k = 1 + Math.sin(Math.atan2(z, x) * freq) * amount;
+    p.setX(i, x * k);
+    p.setZ(i, z * k);
+  }
+  p.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function createBestiaryMeshFactory({
   THREE,
   getFloorGroup,
@@ -122,16 +140,57 @@ export function createBestiaryMeshFactory({
     return group;
   }
 
+  // Neck, jaw and two slightly bent arms with hands. Geometries are cached per
+  // kind and shared; every mesh uses the entity's own spectral material so the
+  // sway/rim shader stays consistent. Max four entities per floor, so the extra
+  // draw calls stay bounded.
+  function addHumanoid(g, T, [C], mat, shape, skinMat = mat) {
+    const geo = (name, make) => {
+      const key = 'anat:' + shape.id + ':' + name;
+      if (!C[key]) C[key] = keepGeometry(make());
+      return C[key];
+    };
+    const add = (gg, x, y, z, rz = 0, sx = 1, sy = 1, sz = 1, material = mat) => {
+      const m = new T.Mesh(gg, material);
+      m.position.set(x, y, z);
+      m.rotation.z = rz;
+      m.scale.set(sx, sy, sz);
+      g.add(m);
+    };
+    add(geo('neck', () => new T.CylinderGeometry(.055, .072, shape.neckTop - shape.neckBottom, 8)),
+      0, (shape.neckTop + shape.neckBottom) / 2, 0);
+    add(geo('jaw', () => new T.SphereGeometry(.16, 10, 8)), 0, shape.jawY, .05, 0, .92, .6, .86, skinMat);
+    for (const side of [-1, 1]) {
+      const a1 = side * shape.bend;
+      const px = side * shape.shoulderX;
+      add(geo('shoulder', () => new T.SphereGeometry(.085, 8, 6)), px, shape.shoulderY, 0);
+      add(geo('upper', () => new T.CylinderGeometry(.048, .04, shape.upper, 7)),
+        px - Math.sin(a1) * (shape.upper / 2), shape.shoulderY - Math.cos(a1) * (shape.upper / 2), 0, a1);
+      const ex = px - Math.sin(a1) * shape.upper;
+      const ey = shape.shoulderY - Math.cos(a1) * shape.upper;
+      add(geo('elbow', () => new T.SphereGeometry(.045, 7, 5)), ex, ey, 0);
+      const a2 = a1 - side * shape.bend * 0.55;
+      add(geo('fore', () => new T.CylinderGeometry(.04, .032, shape.fore, 7)),
+        ex - Math.sin(a2) * (shape.fore / 2), ey - Math.cos(a2) * (shape.fore / 2), 0, a2);
+      const hx = ex - Math.sin(a2) * shape.fore;
+      const hy = ey - Math.cos(a2) * shape.fore;
+      add(geo('hand', () => new T.BoxGeometry(.07, .12, .035)), hx, hy, 0, a2, 1, 1, 1, skinMat);
+      add(geo('thumb', () => new T.BoxGeometry(.028, .06, .028)), hx + side * .045, hy - .02, .02, a2, 1, 1, 1, skinMat);
+    }
+  }
+
   const factories = {
     sombra(x, z) {
       const T = THREE, g = new T.Group(), [C, M] = getCaches();
       if (!M.sombra) M.sombra = spectralMaterial({color:0x121826,emissive:0x2c3a56,emissiveIntensity:1.1,transparent:true,opacity:.95,swayAmp:.075,swaySpeed:1.7,swayAnchorY:1.35,swayRange:1.6,rimColor:0x5a80b4,rimStrength:.55,rimPower:2.0,hem:{bottom:.02,top:1.05}});
-      if (!C.sombra) C.sombra = keepGeometry(lathe([[.02,-.15],[.26,.2],[.42,.65],[.34,1.15],[.19,1.55],[.11,1.9]],16));
+      if (!M.sombraSkin) M.sombraSkin = spectralMaterial({color:0x11161f,emissive:0x0a0d14,emissiveIntensity:.3,rimColor:0x3d5478,rimStrength:.45,rimPower:2.4});
+      if (!C.sombra) C.sombra = keepGeometry(foldGeometry(lathe([[.02,-.15],[.26,.2],[.42,.65],[.34,1.15],[.19,1.55],[.11,1.9]],16),.03,9));
       if (!C.sombraHead) C.sombraHead = keepGeometry(new T.SphereGeometry(.24,12,12));
+      addHumanoid(g,T,[C],M.sombra,{id:'sombra',shoulderY:1.84,shoulderX:.16,upper:.33,fore:.29,bend:.11,neckBottom:1.7,neckTop:1.88,jawY:1.9},M.sombraSkin);
       if (!M.eyeRed) { M.eyeRed = material({color:0xE63946,emissive:0xE63946,emissiveIntensity:2.2}); M.eyeRed.userData.keep = true; }
       if (!C.eye) C.eye = keepGeometry(new T.SphereGeometry(.045,8,8));
       g.add(new T.Mesh(C.sombra,M.sombra));
-      const head = new T.Mesh(C.sombraHead,M.sombra); head.position.y = 2.02; g.add(head);
+      const head = new T.Mesh(C.sombraHead,M.sombraSkin); head.position.y = 2.02; g.add(head);
       const eL = new T.Mesh(C.eye,M.eyeRed); eL.position.set(-.08,2.06,.22);
       const eR = eL.clone(); eR.position.x = .08; g.add(eL); g.add(eR);
       addToFloor(g,x,z);
@@ -140,13 +199,15 @@ export function createBestiaryMeshFactory({
     sayona(x, z) {
       const T = THREE, g = new T.Group(), [C, M] = getCaches();
       if (!M.sayonaGown) M.sayonaGown = spectralMaterial({color:0xe4ded0,emissive:0x45433a,emissiveIntensity:.4,transparent:true,opacity:.94,swayAmp:.08,swaySpeed:1.4,swayAnchorY:1.6,swayRange:2.0,rimColor:0xd0d6d8,rimStrength:.5,rimPower:2.2,hem:{bottom:.02,top:1.0}});
-      if (!C.sayonaGown) C.sayonaGown = keepGeometry(lathe([[.03,-.1],[.26,.35],[.44,1.0],[.34,1.7],[.2,2.2],[.13,2.5]],18));
+      if (!C.sayonaGown) C.sayonaGown = keepGeometry(foldGeometry(lathe([[.012,-.12],[.34,.05],[.33,.5],[.27,1.05],[.21,1.5],[.19,1.8],[.2,2.0],[.12,2.18],[.05,2.3]],18),.03,10));
       if (!M.sayonaHair) M.sayonaHair = spectralMaterial({color:0x08090e,emissive:0x0c0c14,emissiveIntensity:.2,swayAmp:.05,swaySpeed:1.6,swayAnchorY:2.55,swayRange:1.5,rimColor:0x2a2438,rimStrength:.3,rimPower:2.6});
+      if (!M.sayonaSkin) M.sayonaSkin = spectralMaterial({color:0xb8a693,emissive:0x2b2622,emissiveIntensity:.25,rimColor:0xd8c8b4,rimStrength:.3,rimPower:3.0});
       if (!C.sayonaHair) C.sayonaHair = keepGeometry(lathe([[.14,2.6],[.3,2.1],[.29,1.4],[.16,.95]],14));
       if (!C.head20) C.head20 = keepGeometry(new T.SphereGeometry(.2,14,14));
+      addHumanoid(g,T,[C],M.sayonaGown,{id:'sayona',shoulderY:2.04,shoulderX:.18,upper:.36,fore:.33,bend:.12,neckBottom:2.12,neckTop:2.3,jawY:2.36},M.sayonaSkin);
       if (!C.faceP) C.faceP = keepGeometry(new T.PlaneGeometry(.3,.36));
       g.add(new T.Mesh(C.sayonaGown,M.sayonaGown));
-      const head = new T.Mesh(C.head20,M.sayonaGown); head.position.y = 2.45; g.add(head);
+      const head = new T.Mesh(C.head20,M.sayonaSkin); head.position.y = 2.45; g.add(head);
       const faceCalm = new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:faceTexture('sayonaCalm'),transparent:true})); faceCalm.position.set(0,2.46,.19); g.add(faceCalm);
       const faceTrue = new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:faceTexture('sayonaTrue'),transparent:true,opacity:0})); faceTrue.position.set(0,2.46,.195); g.add(faceTrue);
       g.add(new T.Mesh(C.sayonaHair,M.sayonaHair));
@@ -156,13 +217,15 @@ export function createBestiaryMeshFactory({
     llorona(x, z) {
       const T = THREE, g = new T.Group(), [C, M] = getCaches();
       if (!M.llorona) M.llorona = spectralMaterial({color:0xb8c0bb,emissive:0x333a34,emissiveIntensity:.5,transparent:true,opacity:.9,swayAmp:.07,swaySpeed:1.5,swayAnchorY:1.5,swayRange:1.9,rimColor:0x82b2b8,rimStrength:.55,rimPower:2.1,hem:{bottom:.02,top:1.1}});
-      if (!C.llorona) C.llorona = keepGeometry(lathe([[.03,-.1],[.24,.3],[.4,.9],[.32,1.5],[.2,2.0],[.13,2.25]],16));
+      if (!M.lloronaSkin) M.lloronaSkin = spectralMaterial({color:0x8f9a95,emissive:0x232a26,emissiveIntensity:.3,rimColor:0x9fc4c8,rimStrength:.35,rimPower:2.8});
+      if (!C.llorona) C.llorona = keepGeometry(foldGeometry(lathe([[.03,-.1],[.24,.3],[.4,.9],[.32,1.5],[.2,2.0],[.13,2.25]],16),.03,9));
+      addHumanoid(g,T,[C],M.llorona,{id:'llorona',shoulderY:1.98,shoulderX:.14,upper:.3,fore:.28,bend:.12,neckBottom:1.88,neckTop:2.05,jawY:2.06},M.lloronaSkin);
       if (!M.lloronaVeil) M.lloronaVeil = spectralMaterial({color:0xd6dad2,emissive:0x3a3e38,emissiveIntensity:.45,transparent:true,opacity:.7,swayAmp:.05,swaySpeed:1.9,swayAnchorY:2.3,swayRange:1.5,rimColor:0xa0d0d4,rimStrength:.5,hem:{bottom:.7,top:2.3},side:T.DoubleSide});
       if (!C.lloronaVeil) C.lloronaVeil = keepGeometry(lathe([[.1,2.35],[.32,1.95],[.44,1.35]],14));
       if (!C.head20b) C.head20b = keepGeometry(new T.SphereGeometry(.2,12,12));
       if (!C.arms) C.arms = keepGeometry(new T.SphereGeometry(.24,10,10));
       g.add(new T.Mesh(C.llorona,M.llorona));
-      const head = new T.Mesh(C.head20b,M.llorona); head.position.set(0,2.15,.06); head.rotation.x = .5; g.add(head);
+      const head = new T.Mesh(C.head20b,M.lloronaSkin); head.position.set(0,2.15,.06); head.rotation.x = .5; g.add(head);
       g.add(new T.Mesh(C.lloronaVeil,M.lloronaVeil));
       const arms = new T.Mesh(C.arms,M.llorona); arms.position.set(0,1.75,.22); arms.scale.set(1.3,.5,.8); arms.userData = {z0:.22,rx0:0}; g.add(arms);
       addToFloor(g,x,z);
@@ -171,7 +234,9 @@ export function createBestiaryMeshFactory({
     silbon(x, z) {
       const T = THREE, g = new T.Group(), [C, M] = getCaches();
       if (!M.silbon) M.silbon = spectralMaterial({color:0x0d0f14,emissive:0x161a22,emissiveIntensity:.5,transparent:true,opacity:.96,swayAmp:.06,swaySpeed:1.3,swayAnchorY:2.0,swayRange:2.3,rimColor:0x3c4a56,rimStrength:.5,rimPower:2.0,hem:{bottom:.05,top:1.25}});
-      if (!C.silbon) C.silbon = keepGeometry(lathe([[.03,-.1],[.15,.4],[.21,1.2],[.16,2.2],[.11,2.9],[.08,3.15]],14));
+      if (!M.silbonSkin) M.silbonSkin = spectralMaterial({color:0x2a2a30,emissive:0x101014,emissiveIntensity:.2,rimColor:0x4a5560,rimStrength:.35,rimPower:2.6});
+      if (!C.silbon) C.silbon = keepGeometry(foldGeometry(lathe([[.03,-.1],[.15,.4],[.21,1.2],[.16,2.2],[.11,2.9],[.08,3.15]],14),.025,8));
+      addHumanoid(g,T,[C],M.silbon,{id:'silbon',shoulderY:2.9,shoulderX:.105,upper:.38,fore:.36,bend:.07,neckBottom:2.98,neckTop:3.1,jawY:3.1},M.silbonSkin);
       if (!C.silbonHead) C.silbonHead = keepGeometry(new T.SphereGeometry(.17,12,12));
       if (!C.faceP) C.faceP = keepGeometry(new T.PlaneGeometry(.3,.36));
       if (!M.silbonHat) M.silbonHat = spectralMaterial({color:0x8a7a55,emissive:0x2a2418,emissiveIntensity:.3,rimColor:0xaa9866,rimStrength:.25,rimPower:2.5});
@@ -180,7 +245,7 @@ export function createBestiaryMeshFactory({
       if (!M.sack) M.sack = spectralMaterial({color:0x6b5a3f,emissive:0x1a140c,emissiveIntensity:.35,rimColor:0x8a7550,rimStrength:.3,rimPower:2.4});
       if (!C.sack) C.sack = keepGeometry(new T.SphereGeometry(.3,12,12));
       g.add(new T.Mesh(C.silbon,M.silbon));
-      const head = new T.Mesh(C.silbonHead,M.silbon); head.position.y = 3.15; g.add(head);
+      const head = new T.Mesh(C.silbonHead,M.silbonSkin); head.position.y = 3.15; g.add(head);
       const face = new T.Mesh(C.faceP,new T.MeshBasicMaterial({map:faceTexture('silbon'),transparent:true})); face.scale.set(.8,.8,.8); face.position.set(0,3.16,.15); g.add(face);
       const crown = new T.Mesh(C.silbonCrown,M.silbonHat); crown.position.y = 3.42; g.add(crown);
       const brim = new T.Mesh(C.silbonBrim,M.silbonHat); brim.position.y = 3.32; g.add(brim);
@@ -208,7 +273,9 @@ export function createBestiaryMeshFactory({
     manguanguas(x, z) {
       const T = THREE, g = new T.Group(), [C, M] = getCaches();
       if (!M.manguanguas) M.manguanguas = spectralMaterial({color:0x65727b,emissive:0x1a2530,emissiveIntensity:.45,transparent:true,opacity:.88,swayAmp:.055,swaySpeed:1.25,swayAnchorY:1.2,swayRange:1.8,rimColor:0xaac6d0,rimStrength:.45,rimPower:2.2,hem:{bottom:.03,top:1.25}});
-      if (!C.manguanguasBody) C.manguanguasBody = keepGeometry(lathe([[.03,-.1],[.22,.25],[.38,.72],[.32,1.25],[.23,1.72],[.13,1.95]],14));
+      if (!M.manguanguasSkin) M.manguanguasSkin = spectralMaterial({color:0x8b8f92,emissive:0x232a2e,emissiveIntensity:.3,rimColor:0xb8ccd4,rimStrength:.35,rimPower:2.8});
+      if (!C.manguanguasBody) C.manguanguasBody = keepGeometry(foldGeometry(lathe([[.03,-.1],[.22,.25],[.38,.72],[.32,1.25],[.23,1.72],[.13,1.95]],14),.03,9));
+      addHumanoid(g,T,[C],M.manguanguas,{id:'manguanguas',shoulderY:1.84,shoulderX:.17,upper:.29,fore:.26,bend:.14,neckBottom:1.78,neckTop:1.92,jawY:1.98},M.manguanguasSkin);
       if (!C.manguanguasHead) C.manguanguasHead = keepGeometry(new T.SphereGeometry(.21,12,10));
       if (!C.manguanguasArm) C.manguanguasArm = keepGeometry(new T.SphereGeometry(.14,8,8));
       if (!M.manguanguasCup) M.manguanguasCup = material({color:0x725039,emissive:0x241208,emissiveIntensity:.3});
@@ -218,13 +285,9 @@ export function createBestiaryMeshFactory({
       if (!C.manguanguasHandle) C.manguanguasHandle = keepGeometry(new T.TorusGeometry(.1,.022,6,12));
 
       g.add(new T.Mesh(C.manguanguasBody,M.manguanguas));
-      const head = new T.Mesh(C.manguanguasHead,M.manguanguas);
+      const head = new T.Mesh(C.manguanguasHead,M.manguanguasSkin);
       head.position.y = 2.08;
       g.add(head);
-      const arm = new T.Mesh(C.manguanguasArm,M.manguanguas);
-      arm.position.set(.28,1.38,.06);
-      arm.scale.set(1.55,.42,.7);
-      g.add(arm);
 
       const coffeeCup = new T.Group();
       coffeeCup.name = 'coffee-cup';
