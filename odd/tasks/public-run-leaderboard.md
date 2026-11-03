@@ -76,4 +76,4 @@ Delivered against the identity-free design in `odd/tasks/all-player-run-telemetr
 
 ## Next Step
 
-Reconciled 2026-11-03: ODD-1 through ODD-4 are closed. The identity-free telemetry design in `odd/tasks/all-player-run-telemetry.md` replaced the original opt-in alias/leaderboard flow. Its follow-ups are now resolved: the legacy `get_run_analytics()` RPC is revoked and dropped by `202611030001_retire_legacy_run_analytics.sql` (local until applied remotely), legacy-row retention is decided with a manual purge script, and `scripts/playthrough.mjs` covers the interaction-driven browser playthrough. Nothing here blocks further work.
+Reconciled 2026-11-03: ODD-1 through ODD-4 are closed. The identity-free telemetry design in `odd/tasks/all-player-run-telemetry.md` replaced the original opt-in alias/leaderboard flow. Its follow-ups are now resolved: the legacy `get_run_analytics()` RPC is revoked and dropped by `202611030001_retire_legacy_run_analytics.sql` (applied remotely 2026-11-03), legacy-row retention is decided with a manual purge script, and `scripts/playthrough.mjs` covers the interaction-driven browser playthrough. Nothing here blocks further work.

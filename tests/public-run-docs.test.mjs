@@ -42,14 +42,15 @@ test('product guide describes run counts, durations, and unverified outcomes', (
   assertDocsMatch(/no individual player deletion|cannot.*delete individual/i, 'guide must not promise player-controlled deletion');
 });
 
-test('guide documents default-on aggregate telemetry, durable queue, and local migration', () => {
+test('guide documents default-on aggregate telemetry, durable queue, and applied migrations', () => {
   assertDocsMatch(/default-on/i, 'guide must disclose that run telemetry is enabled by default');
   assertDocsMatch(/opt-out/i, 'guide must explain how to disable future telemetry');
   assertDocsMatch(/IndexedDB/i, 'guide must explain durable local retry storage');
   assertDocsMatch(/202610200001_identity_free_run_telemetry\.sql/, 'guide must identify the new local migration');
   assertDocsMatch(/fully paused|project.*paused/i, 'guide must state that a fully paused project requires owner restore');
   assertDocsMatch(/aggregate/i, 'guide must describe aggregate output rather than player records');
-  assertDocsMatch(/no remote|local only|have not been applied remotely|has not been applied/i, 'guide must disclose the local-only migration state');
+  assertDocsMatch(/202611030001_retire_legacy_run_analytics\.sql`?\s+was applied on 2026-11-03/i, 'guide must disclose that the retirement migration was applied');
+  assertDocsMatch(/no migration is pending/i, 'guide must state that no migration is pending');
   assert.doesNotMatch(docs, /anonymous Auth (?:session is created|is required|is used)|display alias|delete_my_run_data/i);
   assert.doesNotMatch(readme, /opt-in, session-only Supabase records adapter/i);
   assert.doesNotMatch(readme, /public rescue aliases remain separately opt-in/i);
