@@ -1,3 +1,5 @@
+> **Historical record.** Session log kept for traceability, not a current plan or specification. Shipped design: [`docs/architecture.md`](../../docs/architecture.md).
+
 Objective: Build the modular engine spine with separated responsibilities, preserving game behavior. Branch: refactor/architecture-solid-spine from 02fb41c. Delivery: ask-on-risk; chain: stacked-to-main. Runner: node --test tests/*.test.mjs.
 
 ## Specs

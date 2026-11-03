@@ -133,9 +133,10 @@ Key details:
 - The loop owns delta clamping and scheduling. `Game` only supplies RAF adapters and an
   `update` callback; `_frame` does not schedule itself.
 - `buildFloor(n)` tears down the previous floor group, rebuilds geometry and colliders,
-  creates the level description with `createLevel({ layout: { kind: 'room', colliders } })`,
-  and resets the run through `createRunState`. Floor 7 is the rooftop: time becomes a
-  sentinel and temptation replaces the floor timer.
+  creates the level description with
+  `createLevel({ layout: { kind: 'room', colliders, pickups } })`, and resets the run
+  through `createRunState`. Floor 7 is the rooftop: time becomes a sentinel and
+  temptation replaces the floor timer.
 - Survival and progression rules live in `stepRunState`. `_applyRunEvents` translates
   returned events (forced ascension, carreton, lifeline, jump, rescue) into game effects.
   Pickups and phone use call `_syncRunFromGame` to push counters back into run state.
@@ -169,27 +170,16 @@ instead of adding kind branches to `Game`.
 
 ### Add a floor item
 
-This is the least settled path today, because the level lifecycle is incomplete.
-
-What works now:
-
-1. Create the visual and its position in `buildFloor` in
-   [`game.mjs`](../public/game.mjs), alongside the existing ward, pistol, memento, and
-   phone fields.
-2. Add a distance check in `_game` with the item's radius and first-match ordering.
-3. Add a `tests/level.test.mjs` case only if the item is also described in the layout.
-
-That touches `Game` in several places. It is the known T3 gap, not the pattern to copy.
-
-Target shape once the level lifecycle lands:
-
-- Describe the pickup in the layout passed to `createLevel` as `{ id, x, z, radius }`.
-  `pickupAt` returns the first un-taken item within its radius and marks it taken, so
-  ordering and radii live in one place.
-- Keep the visual in `buildFloor`.
-- In `_game`, query `this.level.pickupAt(camera.position)` and dispatch on the returned
-  `id`; no per-item radius checks remain.
-- Add a `tests/level.test.mjs` case for the new layout entry.
+1. Add the pickup to the `pickups` array in `buildFloor` in
+   [`game.mjs`](../public/game.mjs) as `{ id, x, z, radius }`, beside the existing ward,
+   pistol, and memento entries. `buildFloor` passes that array to
+   `createLevel({ layout: { kind: 'room', colliders, pickups } })`.
+2. Keep the visual and its position in `buildFloor` alongside the existing ward, pistol,
+   memento, and phone fields.
+3. In `_game`, dispatch on the `id` returned by `this.level.pickupAt(cam.position)`.
+   `pickupAt` returns the first un-taken item within its radius and marks it taken, so
+   ordering and radii live in one place. Do not add per-item radius checks to `Game`.
+4. Add a `tests/level.test.mjs` case for the new layout entry.
 
 ### Add a UI field
 

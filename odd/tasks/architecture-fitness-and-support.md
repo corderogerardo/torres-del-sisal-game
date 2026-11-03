@@ -1,5 +1,7 @@
 # Architecture Fitness and Player Support
 
+> **Historical record.** Session log kept for traceability, not a current plan or specification. Shipped design: [`docs/architecture.md`](../../docs/architecture.md).
+
 ## Objective
 
 Evolve Torres del Sisal toward a testable, modular vanilla-JavaScript game architecture, add measurable architecture/runtime fitness checks, and put supportive mental-health guidance on the Spanish intro screen for players in Venezuela.

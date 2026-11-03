@@ -1,5 +1,7 @@
 # Spectral Entity Redesign — Design Spec
 
+> **Superseded design.** Written when the game was a single self-contained `public/index.html`; the code has since split into ES modules. Kept for design history. Current design: [`architecture.md`](../../architecture.md).
+
 **Date:** 2026-07-14
 **Project:** Torres del Sisal (single self-contained `public/index.html`, Three.js r128)
 **Goal:** Make the six entities dramatically more detailed, folklore-accurate, and *alive* — without external assets, without losing the dark/foggy painterly tone, and without giving back the performance we just gained.
