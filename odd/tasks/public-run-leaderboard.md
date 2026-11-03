@@ -38,19 +38,21 @@ The game currently tracks only local gameplay state and optional local renderer 
 
 - [x] ODD-1 — Add a Supabase migration for anonymous player preferences, private run history, public best-rescue entries, aggregate counts, constraints, indexes, RLS, and narrowly scoped database functions.
 - [x] ODD-2 — Add local Supabase configuration and a lazy-loaded client/data adapter; run telemetry is enabled by default unless the player opts out, and public alias publication remains separately opt-in.
-- [ ] ODD-3 — Reopened by default-on, opt-out telemetry and durable delivery: record run start/end without blocking gameplay; offer alias publication, render public best rescued runs per difficulty, show aggregate counts, and retain pending records offline.
+- [x] ODD-3 — Superseded and delivered by `odd/tasks/all-player-run-telemetry.md` (PR #2, squash `583de1d`): default-on, opt-out, identity-free run telemetry with a durable IndexedDB outbox. Alias publication and the player-facing leaderboard/deletion path were retired by the 2026-10-15 requirement change.
 - [x] ODD-4 — Add tests/docs for outcomes, telemetry opt-out/privacy behavior, public field allowlist, local setup, RLS/migration checks, and honest score-verification limits.
 
 ## Acceptance Criteria
 
+Delivered against the identity-free design in `odd/tasks/all-player-run-telemetry.md`. The earlier alias/leaderboard and player-deletion criteria were retired by the 2026-10-15 requirement change.
+
 - With no Supabase config, no SDK download or request occurs and the game remains fully playable.
-- With config and telemetry enabled (the default), run records are captured; a persisted opt-out prevents future telemetry submissions. Public alias publication remains separately opt-in.
-- Anonymous session records can capture a run with no display name; end outcomes and durations are validated and failures are non-blocking with a durable local outbox when IndexedDB is available.
-- An alias and rescued run become public only after separate explicit opt-in; full run history stays owner-only. The active session can delete its private rows/public entry; no durable identity is retained for later visits.
+- With config and telemetry enabled (the default), run records are captured; a persisted opt-out prevents future telemetry submissions.
+- Anonymous session records capture a run with no display name; outcomes and durations are validated, failures are non-blocking, and pending records survive in a durable IndexedDB outbox.
+- No username, user ID, or Auth identity is stored. Alias publication and the player-facing delete path were removed; historical identity-linked rows are retained and unreachable by browser roles.
 - Public output contains no email, auth UUID, raw run timeline, IP, device, or jumped ending row.
-- Public counts clearly mean recorded runs and anonymous Auth sessions, not unique people; leaderboard entries are labelled unverified.
-- Tests verify the behavior and fail first under TDD. Browser `/?test` remains green.
-- Deployment instructions explain how the owner can create/configure a Supabase project and apply the migration, without exposing credentials in this repository.
+- Public counts mean recorded runs, not unique people.
+- Tests verify the behavior; browser `/?test` remains green (65/65 in headless Chrome on build `83256bc`).
+- Deployment instructions explain how to configure Supabase and apply the migration, without exposing credentials in this repository.
 
 ## Progress and Evidence
 
@@ -66,6 +68,7 @@ The game currently tracks only local gameplay state and optional local renderer 
 - Migration evidence: `supabase link --project-ref qsinbieznomavmrnoxeg` succeeded; `supabase db push --dry-run` listed only `202609230001_public_run_records.sql`; `supabase db push` applied that migration successfully. `psql` is unavailable, so there was no separate local PostgreSQL run. Live Auth/RLS behavior has not been exercised from the browser.
 - Remote status: only the authorized schema migration was applied. No secret value was printed, inspected, or added to the repository/game. The Supabase CLI used the user's explicitly authorized local session; local credential storage was not inspected.
 - Requirement change (2026-10-15), user verbatim: “I want to save every players run even if does not provide a name, I want this to work like observability works to have real players data”. User selected “Default on, opt-out (Recommended)”. The earlier default-off statistics setting is superseded; public alias publication stays opt-in. See `odd/tasks/all-player-run-telemetry.md` for the new implementation tasks and delivery strategy.
+- ODD-3 reconciliation (2026-11-03): closed as superseded, not as literal completion. The shipped design is identity-free aggregate telemetry; the original opt-in alias, public leaderboard, and player-deletion criteria no longer describe the code. Evidence: 35/35 focused tests across `anonymous-run-telemetry`, `run-telemetry-client`, `run-outbox`, `identity-free-rls`, `public-run-migration`, and `public-run-docs`; full suite 203/203. Telemetry defaults on with `TELEMETRY_OPT_OUT_KEY`; `public/run-outbox.mjs` is a durable IndexedDB queue; `get_public_rescues` and `delete_my_run_data` are dropped.
 - Engram mirror for this requirement update is pending because multiple project sessions are active; local task documents remain the current source of truth.
 - Browser status: a local Playwright Chromium run of `/?test` passed the built-in harness **65/65** (render micro-benchmark 0.2 ms/frame). The intro showed both opt-ins unchecked and the Supabase feature disabled with the example config absent. Browser console reported only the pre-existing `/favicon.ico` 404. No Supabase Auth/API client request was made.
 - Remaining work: owner must add `public/supabase-config.js` with the project URL and publishable key (it is gitignored), then explicitly test the opt-in/auth/data flow. This was not possible without the project's public client configuration.
@@ -73,4 +76,4 @@ The game currently tracks only local gameplay state and optional local renderer 
 
 ## Next Step
 
-Local ODD-1 through ODD-4 are complete with the resolved IP scope: do not add IP/user-agent fields to game-owned tables or logs, and keep the Supabase provider-side logging caveat disclosed. Migration `202609230001_public_run_records.sql` is applied to project `qsinbieznomavmrnoxeg`; the browser integration remains disabled until local publishable configuration is provided.
+Reconciled 2026-11-03: ODD-1 through ODD-4 are closed. The identity-free telemetry design in `odd/tasks/all-player-run-telemetry.md` replaced the original opt-in alias/leaderboard flow; its L29 lists the only optional follow-ups (legacy `get_run_analytics()` grant, legacy-row retention policy, a real browser playthrough). Nothing here blocks further work.

@@ -56,7 +56,7 @@ public/            # everything that gets deployed
 .github/workflows/ # auto-deploy on push to main; test gate on PRs and main
 deploy.sh          # one-command manual deploy
 docs/architecture.md # module map, dependency rules, extension recipes, known gaps
-tests/             # Node built-in tests and architecture fitness checks
+tests/             # Node built-in tests: gameplay, architecture fitness, docs consistency
 project/           # original Claude Design handoff bundle (reference only)
 supabase/migrations/ # local SQL migrations; remote changes require explicit authorization
 ```
