@@ -276,17 +276,17 @@ class Game {
   _faceTexture(kind){ this._faceTex=this._faceTex||{}; if(this._faceTex[kind]) return this._faceTex[kind];
     const T=window.THREE, c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d');
     x.clearRect(0,0,128,128);
-    const eye=(ex,ey,r,fill)=>{ x.beginPath(); x.ellipse(ex,ey,r,r*1.25,0,0,7); x.fillStyle=fill; x.fill(); };
+    // Eyes are geometry now; this layer keeps only mouth, brow and skin shading.
     if(kind==='sayonaCalm'){ x.fillStyle='rgba(232,226,214,0.0)'; x.fillRect(0,0,128,128);
-      eye(48,56,6,'#1a1420'); eye(80,56,6,'#1a1420'); x.strokeStyle='rgba(60,40,50,0.5)'; x.lineWidth=2; x.beginPath(); x.moveTo(58,86); x.quadraticCurveTo(64,90,70,86); x.stroke(); }
-    else if(kind==='sayonaTrue'){ eye(46,54,11,'#000'); eye(82,54,11,'#000');
-      x.fillStyle='#E63946'; eye(46,54,4,'#E63946'); eye(82,54,4,'#E63946');
-      x.fillStyle='#0a0406'; x.beginPath(); x.ellipse(64,92,16,14,0,0,7); x.fill(); // gaping mouth
-      x.strokeStyle='#d8d2c4'; x.lineWidth=2; for(let i=-2;i<=2;i++){ x.beginPath(); x.moveTo(64+i*6,82); x.lineTo(64+i*6,98); x.stroke(); } } // fangs
+      x.strokeStyle='rgba(60,40,50,0.45)'; x.lineWidth=2; x.beginPath(); x.moveTo(58,86); x.quadraticCurveTo(64,90,70,86); x.stroke();
+      x.fillStyle='rgba(70,48,44,0.18)'; x.beginPath(); x.ellipse(40,52,14,9,0,0,7); x.fill(); x.beginPath(); x.ellipse(88,52,14,9,0,0,7); x.fill(); }
+    else if(kind==='sayonaTrue'){ x.fillStyle='#0a0406'; x.beginPath(); x.ellipse(64,92,16,14,0,0,7); x.fill(); // gaping mouth
+      x.strokeStyle='#d8d2c4'; x.lineWidth=2; for(let i=-2;i<=2;i++){ x.beginPath(); x.moveTo(64+i*6,82); x.lineTo(64+i*6,98); x.stroke(); }
+      x.fillStyle='rgba(80,20,26,0.35)'; x.beginPath(); x.ellipse(40,52,16,11,0,0,7); x.fill(); x.beginPath(); x.ellipse(88,52,16,11,0,0,7); x.fill(); }
     else { // silbon: gaunt sunken
-      eye(50,58,9,'#050505'); eye(78,58,9,'#050505'); x.fillStyle='#c9a94d'; eye(50,58,3,'#c9a94d'); eye(78,58,3,'#c9a94d');
       x.strokeStyle='rgba(20,16,12,0.7)'; x.lineWidth=3; x.beginPath(); x.moveTo(54,92); x.lineTo(74,92); x.stroke();
-      x.strokeStyle='rgba(30,24,18,0.4)'; x.lineWidth=2; x.beginPath(); x.moveTo(64,64); x.lineTo(64,84); x.stroke(); }
+      x.strokeStyle='rgba(30,24,18,0.4)'; x.lineWidth=2; x.beginPath(); x.moveTo(64,64); x.lineTo(64,84); x.stroke();
+      x.fillStyle='rgba(12,10,8,0.45)'; x.beginPath(); x.ellipse(40,56,15,10,0,0,7); x.fill(); x.beginPath(); x.ellipse(88,56,15,10,0,0,7); x.fill(); }
     const tex=new T.CanvasTexture(c); tex.userData={keep:true}; this._faceTex[kind]=tex; return tex; }
   // Adaptive quality: only ever REDUCES resolution on devices that can't hold ~50fps; capable hardware stays at full.
   _adaptQuality(dt){ if(!this.renderer) return; this._fpsT+=dt; this._fpsN++;
@@ -321,7 +321,10 @@ class Game {
     this._fwd = new T.Vector3();               // reused each frame instead of allocating
     this._spectral = { time:{ value:0 } };      // one shared uniform driving all GPU sway/flicker
     renderer.setPixelRatio(Math.min(devicePixelRatio,this._prCap)); renderer.setSize(w,h);
-    renderer.outputEncoding=T.sRGBEncoding; el.appendChild(renderer.domElement); this.renderer=renderer;
+    renderer.outputEncoding=T.sRGBEncoding;
+    // Gentle filmic roll-off: highlights stop clipping, emissive ghosts keep their shape.
+    renderer.toneMapping=T.ACESFilmicToneMapping; renderer.toneMappingExposure=0.92;
+    el.appendChild(renderer.domElement); this.renderer=renderer;
     const scene=new T.Scene(); scene.background=new T.Color(0x05070a); scene.fog=new T.FogExp2(0x05070a,.05); this.scene=scene;
     const camera=new T.PerspectiveCamera(74,w/h,.1,240); camera.rotation.order='YXZ'; camera.position.set(0,1.7,-4); this.camera=camera;
     scene.add(new T.HemisphereLight(0x243b52,0x04060a,.4));
@@ -561,8 +564,10 @@ class Game {
       }
       for(const rl of [[-W/3,-W/3],[W/3,W/3]]){ const rlight=new T.PointLight(th.accent,.42,18); rlight.position.set(rl[0],3.4,rl[1]); g.add(rlight); }
       // scatter props
+      // scatter props — large furniture reads as wood, small clutter stays plaster
+      const propMat=this._mat({color:0x4a3527,roughness:1,tex:'wood',texRepeat:[2,2],bumpScale:.015});
       for(let i=0;i<th.props*2+6;i++){ const s=.3+rng()*.6, px=(rng()-.5)*W*.78, pz=(rng()-.5)*W*.78;
-        if(rng()<th.tall){ const hh=1.2+rng()*2.2; g.add(this._box(s*.55,hh,s*.55,cMat,px,hh/2-.2,pz)); }
+        if(rng()<th.tall){ const hh=1.2+rng()*2.2; g.add(this._box(s*.55,hh,s*.55,propMat,px,hh/2-.2,pz)); }
         else g.add(this._box(s,s,s,cMat,px,s/2-.2,pz)); }
       // stains
       const stainCol=(n===6)?0x1a0507:0x000000;
@@ -629,8 +634,8 @@ class Game {
 
     // --- hiding closets: también aleatorios sin encimarse ---
     this.hideSpots=[];
-    const woodMat=this._mat({color:0x2b2118,roughness:.9});
-    const woodDark=this._mat({color:0x191009,roughness:1});
+    const woodMat=this._mat({color:0x2b2118,roughness:.9,tex:'wood',texRepeat:[2,2],bumpScale:.02});
+    const woodDark=this._mat({color:0x191009,roughness:1,tex:'wood',texRepeat:[1,2],bumpScale:.015});
     const nHide=roof?2:3;
     for(let i=0;i<nHide;i++){
       const [hx,hz]=this._findFreeSpot(rng,{minDist:3,spawnDist:4.5,pad:1.1,area:0.78});

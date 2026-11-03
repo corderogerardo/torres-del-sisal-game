@@ -25,8 +25,11 @@ Branch: `feat/visual-realism`. Delivery: stacked-to-main, work-unit commits. Run
 - T1 (S2) — New `public/textures.mjs`: deterministic procedural detail maps (grayscale, tinted by material color) for plaster, wood, tile and fabric, plus matching bump maps. Pure module with an injected canvas factory, no imports. **done** — `tests/textures.test.mjs` 6/6.
 - T2 (S2) — Wire the texture factory into `_mat()` and the floor builder so walls, floors, ceilings and large props use detail plus bump, keeping `specular: 0` matte. **done** — walls `plaster` 3x1, floor `wood` 8x8, ceiling `plaster` 3x3, props `wood` 3x2.
 - T3 (S3) — Humanoid anatomy in `public/bestiary.mjs`: neck, shoulders, bent arms, hands, jaw, gown folds; shared cached geometries. **done** — distinct skin material for head/jaw/hands.
-- T4 (S4) — Contact shadows for entities and props, and a gentle tone-mapping/exposure pass. **done** for shadows; tone mapping skipped to avoid shifting the established palette.
+- T4 (S4) — Contact shadows for entities and props, and a gentle tone-mapping/exposure pass. **done** for shadows; tone mapping landed in T7.
 - T5 (S5) — Screenshot comparison, suite, playthrough, `?test`, render timing. **done** — see L3.
+- T6 (S3) — Geometric eyes. **done** — sclera, iris and pupil spheres on the Sayona and El Silbón; the face texture now carries only mouth, brow and socket shading. The Sayona's reveal swaps the iris material to the red emissive set alongside the face-plane crossfade.
+- T7 (S4) — Filmic tone mapping. **done** — `ACESFilmicToneMapping` at exposure 0.92. 1.12 washed the midtones on the first pass; 0.92 keeps the room dark and stops emissive ghosts clipping to flat white.
+- T8 (S2) — Textures on large props. **done** — wardrobes and tall furniture use the wood map; props got a darker timber tone so they read as furniture instead of painted wall.
 
 ## Log
 
