@@ -1,6 +1,6 @@
 # Public Run Records and Game Analytics
 
-> **Historical record.** Session log kept for traceability, not a current plan. ODD-3 is still open; check the Log for the current state. Shipped design: [`docs/architecture.md`](../../docs/architecture.md).
+> **Historical record.** Session log kept for traceability, not a current plan. Reconciled 2026-11-03; see the Log for evidence. Shipped design: [`docs/architecture.md`](../../docs/architecture.md).
 
 ## Objective
 
