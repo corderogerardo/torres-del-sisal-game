@@ -54,6 +54,45 @@ test('game opts into local metrics only through the metrics query parameter', ()
   assert.match(gameSource, /renderer\.info/);
 });
 
+test('directional shadows stay on the moon and explicitly opted-in meshes', () => {
+  assert.match(gameSource, /renderer\.shadowMap\.enabled\s*=\s*true/);
+  assert.match(gameSource, /renderer\.shadowMap\.type\s*=\s*T\.PCFShadowMap/);
+  assert.match(gameSource, /moon\.castShadow\s*=\s*true/);
+  assert.match(gameSource, /coarse\s*\?\s*512\s*:\s*1024/);
+  assert.match(gameSource, /shadow\.mapSize\.set\(/);
+  assert.match(gameSource, /camera\.(?:left|right|top|bottom)\s*=/);
+  assert.match(gameSource, /userData\.shadowCaster/);
+});
+
+test('built-in visual stress bench exercises all six species while the shadow map is active', () => {
+  const start = gameSource.indexOf('runTests(){');
+  const end = gameSource.indexOf('\n  }\n}', start);
+  assert.ok(start >= 0 && end > start, 'runTests should remain a bounded source-visible harness');
+  const selfTest = gameSource.slice(start, end);
+  assert.match(selfTest, /manguanguas:this\.bestiary\.spawn\('manguanguas'/);
+  assert.match(selfTest, /this\.entities=Object\.values\(spec\)/);
+  const detachExisting = selfTest.search(/this\.entities\.forEach\(e=>\s*\{\s*(?:if\(e\.group\)\s*)?this\.floorGroup\.remove\(e\.group\);?\s*\}\);/);
+  const clearBestiary = selfTest.indexOf('this.bestiary.clear(); this.entities=[]', detachExisting);
+  assert.ok(detachExisting >= 0 && clearBestiary > detachExisting,
+    "the original floor entities must be detached before the six-entity stress fixture is added");
+  const sixEntitySetup = selfTest.search(/this\.entities\.forEach\(e=>\s*\{\s*e\.delay=0;\s*e\.group\.visible=true;\s*this\._addContactShadow\(e\.group\);\s*\}\);/);
+  const stressBench = selfTest.indexOf("ok('six-entity shadow stress < 8ms\/frame'");
+  const removeEntities = selfTest.indexOf('Object.values(spec).forEach(e=>this.floorGroup.remove');
+  assert.ok(sixEntitySetup >= 0 && sixEntitySetup < stressBench,
+    'the six-entity performance fixture must include the live contact-shadow draw calls');
+  assert.ok(stressBench >= 0 && removeEntities > stressBench,
+    'the all-six shadow benchmark must finish before its fixtures are removed');
+});
+
+test('Sayona teeth are not doubled between geometry and the CanvasTexture', () => {
+  const start = gameSource.indexOf('_faceTexture(kind)');
+  const end = gameSource.indexOf('const tex=new T.CanvasTexture(c)', start);
+  assert.ok(start >= 0 && end > start, 'face texture generator should remain source-visible');
+  const faceTextureSource = gameSource.slice(start, end);
+  assert.doesNotMatch(faceTextureSource, /for\(let i=-2;i<=2;i\+\+\)/,
+    'the mouth texture must not draw tooth strokes on top of geometric fangs');
+});
+
 test('runtime metrics retain a bounded rolling sample and report percentiles and renderer counts', () => {
   const metrics = new RuntimeMetrics(3);
   const info = (calls, geometries, textures) => ({

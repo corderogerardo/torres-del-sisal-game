@@ -197,6 +197,10 @@ class Game {
   _onResize(){ if(!this.renderer||!this.camera) return; const el=this.stage; const w=el.clientWidth||innerWidth, h=el.clientHeight||innerHeight; this.renderer.setSize(w,h); this.camera.aspect=w/h; this.camera.updateProjectionMatrix(); }
 
   _box(w,h,d,mat,x,y,z){ const T=window.THREE; const m=new T.Mesh(new T.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); return m; }
+  _syncShadowCasters(root){
+    if(!root) return;
+    root.traverse(o=>{ if(o.isMesh) o.castShadow=!!(o.userData&&o.userData.shadowCaster===true); });
+  }
   // Lit matte material: per-fragment Phong with the specular highlight killed — looks identical to the old
   // roughness:1/metalness:0 MeshStandardMaterial but skips the expensive PBR BRDF. Ignores roughness/metalness keys.
   _mat(o){ const T=window.THREE; const m=new T.MeshPhongMaterial({ color:o.color,
@@ -280,8 +284,7 @@ class Game {
     if(kind==='sayonaCalm'){ x.fillStyle='rgba(232,226,214,0.0)'; x.fillRect(0,0,128,128);
       x.strokeStyle='rgba(60,40,50,0.45)'; x.lineWidth=2; x.beginPath(); x.moveTo(58,86); x.quadraticCurveTo(64,90,70,86); x.stroke();
       x.fillStyle='rgba(70,48,44,0.18)'; x.beginPath(); x.ellipse(40,52,14,9,0,0,7); x.fill(); x.beginPath(); x.ellipse(88,52,14,9,0,0,7); x.fill(); }
-    else if(kind==='sayonaTrue'){ x.fillStyle='#0a0406'; x.beginPath(); x.ellipse(64,92,16,14,0,0,7); x.fill(); // gaping mouth
-      x.strokeStyle='#d8d2c4'; x.lineWidth=2; for(let i=-2;i<=2;i++){ x.beginPath(); x.moveTo(64+i*6,82); x.lineTo(64+i*6,98); x.stroke(); }
+    else if(kind==='sayonaTrue'){ x.fillStyle='#0a0406'; x.beginPath(); x.ellipse(64,92,16,14,0,0,7); x.fill(); // geometric fangs are layered over this mouth
       x.fillStyle='rgba(80,20,26,0.35)'; x.beginPath(); x.ellipse(40,52,16,11,0,0,7); x.fill(); x.beginPath(); x.ellipse(88,52,16,11,0,0,7); x.fill(); }
     else { // silbon: gaunt sunken
       x.strokeStyle='rgba(20,16,12,0.7)'; x.lineWidth=3; x.beginPath(); x.moveTo(54,92); x.lineTo(74,92); x.stroke();
@@ -304,6 +307,16 @@ class Game {
     for(const g of parts){ pos.set(g.attributes.position.array,off*3); nor.set(g.attributes.normal.array,off*3); off+=g.attributes.position.count; g.dispose(); }
     const geo=new T.BufferGeometry(); geo.setAttribute('position',new T.BufferAttribute(pos,3)); geo.setAttribute('normal',new T.BufferAttribute(nor,3)); geo.computeBoundingSphere(); return geo; }
 
+  _configureMoonShadow(coarse){
+    const shadow=this.moon.shadow, camera=shadow.camera, extent=this.roomHalf*Math.SQRT2+1;
+    const size=coarse?512:1024;
+    shadow.mapSize.set(size,size);
+    camera.left=-extent; camera.right=extent; camera.top=extent; camera.bottom=-extent;
+    camera.near=1; camera.far=80; camera.updateProjectionMatrix();
+    shadow.bias=-0.00015; shadow.normalBias=0.02;
+    this._shadowMapSize=size;
+  }
+
   _initThree(){
     const T=window.THREE, el=this.stage; if(!el||this.renderer) return;
     const w=el.clientWidth||innerWidth, h=el.clientHeight||innerHeight;
@@ -313,6 +326,7 @@ class Game {
     try{ renderer=new T.WebGLRenderer({antialias: devicePixelRatio<1.5, powerPreference:'high-performance', stencil:false}); }
     catch(err){ showFatal('No se pudo crear WebGL: '+(err&&err.message||err)); return; }
     if(!renderer||!renderer.getContext||!renderer.getContext()){ showFatal('WebGL no disponible en este navegador.'); return; }
+    renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFShadowMap;
     this._prCap = coarse ? 1.5 : 2;          // touch devices render fewer pixels
     this._renderScale = 1;                    // adaptive-quality multiplier (drops only if the device can't keep up)
     this._fpsT = 0; this._fpsN = 0;
@@ -328,7 +342,7 @@ class Game {
     const scene=new T.Scene(); scene.background=new T.Color(0x05070a); scene.fog=new T.FogExp2(0x05070a,.05); this.scene=scene;
     const camera=new T.PerspectiveCamera(74,w/h,.1,240); camera.rotation.order='YXZ'; camera.position.set(0,1.7,-4); this.camera=camera;
     scene.add(new T.HemisphereLight(0x243b52,0x04060a,.4));
-    const moon=new T.DirectionalLight(0x8fb3d9,.4); moon.position.set(20,26,-12); scene.add(moon); this.moon=moon;
+    const moon=new T.DirectionalLight(0x8fb3d9,.4); moon.position.set(20,26,-12); moon.castShadow=true; scene.add(moon); this.moon=moon;
     const flash=new T.SpotLight(0xffeede,1.2,30,.6,.45,1.1); scene.add(flash); this.flash=flash;
     this.spotTarget=new T.Object3D(); scene.add(this.spotTarget); flash.target=this.spotTarget;
     this._initDust();
@@ -349,6 +363,7 @@ class Game {
     });
     this.entities=[];
     this.buildFloor(1);
+    this._configureMoonShadow(coarse);
     this.clock=new T.Clock();
     this._loop=createGameLoop({
       requestFrame:(callback)=>requestAnimationFrame(callback),
@@ -496,7 +511,8 @@ class Game {
     const cMat=this._mat({color:th.wall,roughness:1,metalness:0,tex:'plaster',texRepeat:[3,1],bumpScale:.01});
     const fMat=this._mat({color:th.floor,roughness:1,metalness:0,tex:'wood',texRepeat:[8,8],bumpScale:.014});
     const rMat=this._mat({color:0x7a4a30,roughness:.7,metalness:.4,tex:'wood',texRepeat:[3,2],bumpScale:.012});
-    g.add(this._box(W,.4,W,fMat,0,-.2,0));
+    const receiverBox=(...args)=>{ const mesh=this._box(...args); mesh.receiveShadow=true; return mesh; };
+    g.add(receiverBox(W,.4,W,fMat,0,-.2,0));
     this.colliders=[];
     // Semilla por piso + azar por visita: cada pasada por el mismo nivel baraja
     // muros, props y objetos sin romper la estructura jugable (1 recuerdo 1-6,
@@ -505,17 +521,17 @@ class Game {
     this._floorVisit[n]=(this._floorVisit[n]||0)+1;
     const rng=this._mulberry(((n*9301+49297)^(Math.floor(Math.random()*0x7fffffff))^((this._floorVisit[n]||1)*7919))>>>0);
     this._placedSpots=[];
-    const wallSeg=(x0,x1,z0,z1,hh)=>{ hh=hh||H; g.add(this._box(x1-x0,hh,z1-z0,cMat,(x0+x1)/2,hh/2,(z0+z1)/2)); this.colliders.push({x0,x1,z0,z1}); };
+    const wallSeg=(x0,x1,z0,z1,hh)=>{ hh=hh||H; g.add(receiverBox(x1-x0,hh,z1-z0,cMat,(x0+x1)/2,hh/2,(z0+z1)/2)); this.colliders.push({x0,x1,z0,z1}); };
 
     if(roof){
       // --- open rooftop: low parapet, sky, city, ledge ---
       const par=1.15;
-      g.add(this._box(W,par,.5,cMat,0,par/2,-W/2)); this.colliders.push({x0:-W/2,x1:W/2,z0:-W/2-.25,z1:-W/2+.25});
-      g.add(this._box(W,par,.5,cMat,0,par/2,W/2));  this.colliders.push({x0:-W/2,x1:W/2,z0:W/2-.25,z1:W/2+.25});
-      for(const sx of [1,-1]){ g.add(this._box(.5,par,W,cMat,sx*W/2,par/2,0)); this.colliders.push({x0:sx*W/2-.25,x1:sx*W/2+.25,z0:-W/2,z1:W/2}); }
+      g.add(receiverBox(W,par,.5,cMat,0,par/2,-W/2)); this.colliders.push({x0:-W/2,x1:W/2,z0:-W/2-.25,z1:-W/2+.25});
+      g.add(receiverBox(W,par,.5,cMat,0,par/2,W/2));  this.colliders.push({x0:-W/2,x1:W/2,z0:W/2-.25,z1:W/2+.25});
+      for(const sx of [1,-1]){ g.add(receiverBox(.5,par,W,cMat,sx*W/2,par/2,0)); this.colliders.push({x0:sx*W/2-.25,x1:sx*W/2+.25,z0:-W/2,z1:W/2}); }
       // ledge marker (front, +z) — the trampolín
       const ledgeMat=this._mat({color:0x11151d,roughness:1,emissive:0x1a0406,emissiveIntensity:.5});
-      g.add(this._box(W*.5,.06,1.4,ledgeMat,0,.03,W/2-1.2));
+      g.add(receiverBox(W*.5,.06,1.4,ledgeMat,0,.03,W/2-1.2));
       this.ledgePos=new T.Vector3(0,0,W/2-1.0);
       // stars
       const sN=600, sg=new T.BufferGeometry(), sp=new Float32Array(sN*3);
@@ -540,20 +556,20 @@ class Game {
       this.windows=[]; this.flickerL=null; this.bola=null;
     } else {
       // --- ceiling ---
-      for(let i=-1;i<=1;i++) g.add(this._box(W,.25,.6,cMat,0,H,i*5));
-      g.add(this._box(W,.12,W,this._mat({color:th.wall,roughness:1,tex:'plaster',texRepeat:[3,3],bumpScale:.008}),0,H+.06,0));
+      for(let i=-1;i<=1;i++) g.add(receiverBox(W,.25,.6,cMat,0,H,i*5));
+      g.add(receiverBox(W,.12,W,this._mat({color:th.wall,roughness:1,tex:'plaster',texRepeat:[3,3],bumpScale:.008}),0,H+.06,0));
       // perimeter walls with door gaps
-      g.add(this._box(W,H,.4,cMat,0,H/2,-W/2)); this.colliders.push({x0:-W/2,x1:W/2,z0:-W/2-.2,z1:-W/2+.2});
-      g.add(this._box(W*.62,H,.4,cMat,-W*.19,H/2,W/2));
-      g.add(this._box(W*.20,H,.4,cMat,W*.40,H/2,W/2));
+      g.add(receiverBox(W,H,.4,cMat,0,H/2,-W/2)); this.colliders.push({x0:-W/2,x1:W/2,z0:-W/2-.2,z1:-W/2+.2});
+      g.add(receiverBox(W*.62,H,.4,cMat,-W*.19,H/2,W/2));
+      g.add(receiverBox(W*.20,H,.4,cMat,W*.40,H/2,W/2));
       this.colliders.push({x0:-W/2,x1:W*.42,z0:W/2-.2,z1:W/2+.2});
       this.colliders.push({x0:W*.3,x1:W/2,z0:W/2-.2,z1:W/2+.2});
-      for(const sx of [1,-1]){ g.add(this._box(.4,H,W*.34,cMat,sx*W/2,H/2,-W*.33)); g.add(this._box(.4,H,W*.34,cMat,sx*W/2,H/2,W*.33)); g.add(this._box(.5,.3,W*.32,cMat,sx*W/2,.15,0));
+      for(const sx of [1,-1]){ g.add(receiverBox(.4,H,W*.34,cMat,sx*W/2,H/2,-W*.33)); g.add(receiverBox(.4,H,W*.34,cMat,sx*W/2,H/2,W*.33)); g.add(receiverBox(.5,.3,W*.32,cMat,sx*W/2,.15,0));
         this.colliders.push({x0:sx*W/2-.2,x1:sx*W/2+.2,z0:-W/2,z1:W/2}); }
       this.windows=[{x:W/2-.4,z:0},{x:-(W/2-.4),z:0}];
       // pillars + candelabra
       const cq=W*.29;
-      for(const c of [[-cq,-cq],[cq,-cq],[-cq,cq],[cq,cq],[0,-cq],[0,cq],[-cq,0],[cq,0]]){ g.add(this._box(.8,H,.8,cMat,c[0],H/2,c[1])); this.colliders.push({x0:c[0]-.4,x1:c[0]+.4,z0:c[1]-.4,z1:c[1]+.4}); for(let k=0;k<4;k++) g.add(this._box(.05,.9,.05,rMat,c[0]-.2+(k%2)*.4,H+.45,c[1]-.2+Math.floor(k/2)*.4)); }
+      for(const c of [[-cq,-cq],[cq,-cq],[-cq,cq],[cq,cq],[0,-cq],[0,cq],[-cq,0],[cq,0]]){ g.add(receiverBox(.8,H,.8,cMat,c[0],H/2,c[1])); this.colliders.push({x0:c[0]-.4,x1:c[0]+.4,z0:c[1]-.4,z1:c[1]+.4}); for(let k=0;k<4;k++) g.add(this._box(.05,.9,.05,rMat,c[0]-.2+(k%2)*.4,H+.45,c[1]-.2+Math.floor(k/2)*.4)); }
       // interior maze walls
       const third=W/3, half=W/2, wt=.16;
       for(const L of [-W/6,W/6]){
@@ -567,7 +583,7 @@ class Game {
       // scatter props — large furniture reads as wood, small clutter stays plaster
       const propMat=this._mat({color:0x4a3527,roughness:1,tex:'wood',texRepeat:[2,2],bumpScale:.015});
       for(let i=0;i<th.props*2+6;i++){ const s=.3+rng()*.6, px=(rng()-.5)*W*.78, pz=(rng()-.5)*W*.78;
-        if(rng()<th.tall){ const hh=1.2+rng()*2.2; g.add(this._box(s*.55,hh,s*.55,propMat,px,hh/2-.2,pz)); }
+        if(rng()<th.tall){ const hh=1.2+rng()*2.2, furniture=this._box(s*.55,hh,s*.55,propMat,px,hh/2-.2,pz); furniture.userData.shadowCaster=true; g.add(furniture); }
         else g.add(this._box(s,s,s,cMat,px,s/2-.2,pz)); }
       // stains
       const stainCol=(n===6)?0x1a0507:0x000000;
@@ -640,7 +656,7 @@ class Game {
     for(let i=0;i<nHide;i++){
       const [hx,hz]=this._findFreeSpot(rng,{minDist:3,spawnDist:4.5,pad:1.1,area:0.78});
       const hg=new T.Group();
-      hg.add(this._box(1.3,2.5,.7,woodMat,0,1.25,0));
+      const closetBody=this._box(1.3,2.5,.7,woodMat,0,1.25,0); closetBody.userData.shadowCaster=true; hg.add(closetBody);
       hg.add(this._box(.55,2.2,.06,woodDark,-.31,1.2,.38));
       hg.add(this._box(.06,.06,.06,this._mat({color:0x7a4a30,roughness:.5,metalness:.5}),-.05,1.2,.42));
       const hyaw=Math.atan2(-hx,-hz); hg.rotation.y=hyaw;
@@ -663,7 +679,7 @@ class Game {
       this.bola={g:bg,light:bl,core,mid,outer,halo,pos:new T.Vector3(-W*.3,2,W*.3),wp:null};
     } else this.bola=null;
 
-    this.bestiary.clear(); this.entities=[]; this._spawnEntities(n,rng);
+    this.bestiary.clear(); this.entities=[]; this._spawnEntities(n,rng); this._syncShadowCasters(g);
     this.wardCollected=false; this.timeLeft=roof?9999:this.diff().time;
     // rooftop finale init
     if(roof){ this.temptation=0; this.lifelines=this.mementos; }
@@ -960,6 +976,7 @@ class Game {
     do{ x=(Math.random()-.5)*this.roomHalf*1.6; z=(Math.random()-.5)*this.roomHalf*1.6; gd++; }while(gd<30&&Math.hypot(x-cam.position.x,z-cam.position.z)<9);
     const e=this.bestiary.spawn(RESPAWN_FACTORY[t]||'sombra',x,z);
     if(e.delay!==undefined) e.delay=1.5;
+    this._syncShadowCasters(e.group);
     this.entities.push(e);
     this._banner('ALGO REGRESÓ'); this.play('scare');
   }
@@ -1146,19 +1163,48 @@ class Game {
       ok('entities carry no point lights', entLights===0);
       // spectral entity redesign: each factory builds meshes and uses the spectral material
       this.state.floor=1; this.buildFloor(1);
+      ok('renderer uses r128 PCF shadow map', !!(this.renderer&&this.renderer.shadowMap&&this.renderer.shadowMap.enabled&&this.renderer.shadowMap.type===T.PCFShadowMap));
+      let shadowLights=0, moonCasts=false;
+      this.scene.traverse(o=>{ if(o.isDirectionalLight&&o.castShadow){ shadowLights++; if(o===this.moon) moonCasts=true; } });
+      ok('only moon directional light casts shadows', shadowLights===1&&moonCasts);
+      const shadowSize=this.moon&&this.moon.shadow&&this.moon.shadow.mapSize;
+      ok('moon shadow map size is device-aware and bounded', !!(shadowSize&&shadowSize.x===this._shadowMapSize&&shadowSize.y===this._shadowMapSize&&(this._shadowMapSize===512||this._shadowMapSize===1024)));
+      let shadowCasters=0, shadowReceivers=0, unmarkedShadowCasters=0;
+      this.floorGroup.traverse(o=>{
+        if(!o.isMesh) return;
+        if(o.castShadow){ shadowCasters++; if(!o.userData||o.userData.shadowCaster!==true) unmarkedShadowCasters++; }
+        if(o.receiveShadow) shadowReceivers++;
+      });
+      ok('floor surfaces receive directional shadows', shadowReceivers>0);
+      ok('only opted-in meshes cast shadows', shadowCasters>0&&unmarkedShadowCasters===0);
+      this.entities.forEach(e=>{ if(e.group) this.floorGroup.remove(e.group); });
       this.bestiary.clear(); this.entities=[];
       const spec={
         sombra:this.bestiary.spawn('sombra',2,2), sayona:this.bestiary.spawn('sayona',3,3),
         llorona:this.bestiary.spawn('llorona',4,4), silbon:this.bestiary.spawn('silbon',5,5), duende:this.bestiary.spawn('duende',6,6),
+        manguanguas:this.bestiary.spawn('manguanguas',7,7),
       };
       this.entities=Object.values(spec);
+      this._syncShadowCasters(this.floorGroup);
       Object.keys(spec).forEach(k=>ok('entity '+k+' builds meshes', spec[k].group.children.filter(o=>o.isMesh).length>0));
       let specMat=0; Object.values(spec).forEach(e=>e.group.traverse(o=>{ if(o.material&&o.material.userData&&o.material.userData.spectral) specMat++; }));
-      ok('entities use spectral material', specMat>=5);
+      ok('entities use spectral material', specMat>=6);
       // La Sayona reveal: driving revealT swaps the calm face for the monstrous one
       const sy=spec.sayona; sy.calm=false; sy.delay=0; sy.group.visible=true; this.entities=[sy];
       for(let i=0;i<50;i++) this._animateEntities(1000+i*16,0.016);
       ok('sayona reveal shows true face', sy.faceTrue.material.opacity>0.5 && sy.faceCalm.material.opacity<0.5);
+      // Full visual load: all six kinds and their opted-in silhouettes share one shadow map.
+      this.entities=Object.values(spec);
+      this.entities.forEach(e=>{ e.delay=0; e.group.visible=true; this._addContactShadow(e.group); });
+      this._syncShadowCasters(this.floorGroup);
+      this.camera.position.set(0,1.8,0); this.camera.rotation.set(0,0.6,0,'YXZ');
+      for(let i=0;i<5;i++) this.renderer.render(this.scene,this.camera);
+      const sixT0=performance.now(); for(let i=0;i<30;i++) this.renderer.render(this.scene,this.camera); const sixMs=(performance.now()-sixT0)/30;
+      this._testSixEntityRenderMs=+sixMs.toFixed(2);
+      this._testSixEntityDrawCalls=this.renderer.info.render.calls;
+      let activeShadowCasters=0; this.entities.forEach(e=>e.group.traverse(o=>{ if(o.isMesh&&o.castShadow) activeShadowCasters++; }));
+      ok('all six silhouettes cast bounded shadows', activeShadowCasters===6);
+      ok('six-entity shadow stress < 8ms/frame', sixMs<8);
       Object.values(spec).forEach(e=>this.floorGroup.remove(e.group)); this.bestiary.clear(); this.entities=[];
       // targeting: empty pistol never highlights
       this.ammo=0; ok('empty pistol: no aim target', this._aimTarget()===null);
@@ -1182,6 +1228,7 @@ class Game {
       this.camera.position.set(0,1.8,0); this.camera.rotation.set(0,0.6,0,'YXZ');
       for(let i=0;i<5;i++) this.renderer.render(this.scene,this.camera);
       const t0=performance.now(); for(let i=0;i<30;i++) this.renderer.render(this.scene,this.camera); const ms=(performance.now()-t0)/30;
+      ok('moon shadow map allocated after render', !!(this.moon&&this.moon.shadow&&this.moon.shadow.map));
       ok('render micro-bench < 8ms/frame', ms<8);
       this._testRenderMs=+ms.toFixed(2);
     }catch(err){ ok('no exception during tests — '+(err&&err.message||err), false); }
@@ -1190,7 +1237,7 @@ class Game {
     d.style.cssText='position:fixed;inset:0;z-index:99999;background:#05070a;color:#F1FAEE;overflow:auto;padding:24px;font:13px/1.6 ui-monospace,SFMono-Regular,monospace';
     d.innerHTML='<div style="max-width:760px;margin:0 auto">'+
       '<div style="font:900 26px/1.1 Cinzel,serif;letter-spacing:1px">TORRES DEL SISAL · SELF TEST '+(allGreen?'✅':'❌')+'</div>'+
-      '<div style="margin:10px 0 18px;font-weight:800;color:'+(allGreen?'#8fe3a0':'#E63946')+'">'+pass+' / '+total+' passed · render '+(this._testRenderMs||'?')+'ms/frame · build '+(window.TDS_BUILD||'?')+'</div>'+
+      '<div style="margin:10px 0 18px;font-weight:800;color:'+(allGreen?'#8fe3a0':'#E63946')+'">'+pass+' / '+total+' passed · render '+(this._testRenderMs||'?')+'ms/frame · six ghosts '+(this._testSixEntityRenderMs||'?')+'ms/frame · color calls '+(this._testSixEntityDrawCalls||'?')+' · build '+(window.TDS_BUILD||'?')+'</div>'+ 
       A.map(a=>'<div style="color:'+(a.pass?'#8fe3a0':'#ff6b76')+'">'+(a.pass?'✓':'✗')+'&nbsp; '+a.name+'</div>').join('')+
       '</div>';
     document.body.appendChild(d);
