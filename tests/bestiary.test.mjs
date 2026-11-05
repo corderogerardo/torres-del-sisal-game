@@ -66,6 +66,74 @@ function gameContext() {
   };
 }
 
+function createMeshFactoryHarness() {
+  class FakeVector3 {
+    constructor(x = 0, y = 0, z = 0) { this.set(x, y, z); }
+    set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
+  }
+  class FakeObject {
+    constructor() {
+      this.position = new FakeVector3();
+      this.rotation = new FakeVector3();
+      this.scale = {
+        x: 1,
+        y: 1,
+        z: 1,
+        set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; },
+        setScalar(value) { return this.set(value, value, value); },
+      };
+      this.children = [];
+      this.userData = {};
+      this.visible = true;
+    }
+    add(child) { this.children.push(child); }
+  }
+  class FakeGroup extends FakeObject {}
+  class FakeGeometry { constructor(...args) { this.args = args; this.userData = {}; } }
+  class FakeMaterial { constructor(options) { Object.assign(this, options); this.userData = {}; } }
+  class FakeMesh extends FakeObject {
+    constructor(geometry, material) {
+      super();
+      this.geometry = geometry;
+      this.material = material;
+      this.isMesh = true;
+    }
+    clone() {
+      const clone = new FakeMesh(this.geometry, this.material);
+      clone.position.set(this.position.x, this.position.y, this.position.z);
+      clone.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
+      clone.scale.set(this.scale.x, this.scale.y, this.scale.z);
+      clone.userData = { ...this.userData };
+      return clone;
+    }
+  }
+
+  const floor = new FakeGroup();
+  const caches = [{}, {}];
+  const meshFactory = createBestiaryMeshFactory({
+    THREE: {
+      Group: FakeGroup,
+      Mesh: FakeMesh,
+      SphereGeometry: FakeGeometry,
+      PlaneGeometry: FakeGeometry,
+      CylinderGeometry: FakeGeometry,
+      TorusGeometry: FakeGeometry,
+      ConeGeometry: FakeGeometry,
+      BoxGeometry: FakeGeometry,
+      MeshBasicMaterial: FakeMaterial,
+      DoubleSide: 2,
+    },
+    getFloorGroup: () => floor,
+    getCaches: () => caches,
+    keepGeometry(geometry) { geometry.userData.keep = true; return geometry; },
+    spectralMaterial: (options) => new FakeMaterial(options),
+    material: (options) => new FakeMaterial(options),
+    lathe: (points, segments) => new FakeGeometry(points, segments),
+    faceTexture: (kind) => ({ kind, userData: { keep: true } }),
+  });
+  return { floor, caches, meshFactory };
+}
+
 test('bestiary kinds expose the six-kind seam vocabulary frozen', () => {
   for (const kind of ['sombra', 'sayona', 'llorona', 'silbon', 'duende', 'manguanguas']) {
     assert.ok(BESTIARY_KINDS.has(kind), `missing kind ${kind}`);
@@ -266,73 +334,178 @@ test('remove excludes an entity from subsequent bestiary ticks', () => {
 });
 
 test('mesh factory builds all six render groups from injected Three dependencies', () => {
-  class FakeVector3 {
-    constructor(x = 0, y = 0, z = 0) { this.set(x, y, z); }
-    set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
-  }
-  class FakeObject {
-    constructor() {
-      this.position = new FakeVector3();
-      this.rotation = new FakeVector3();
-      this.scale = { set() {}, setScalar() {} };
-      this.children = [];
-      this.userData = {};
-      this.visible = true;
-    }
-    add(child) { this.children.push(child); }
-  }
-  class FakeGroup extends FakeObject {}
-  class FakeGeometry { constructor(...args) { this.args = args; this.userData = {}; } }
-  class FakeMaterial { constructor(options) { Object.assign(this, options); this.userData = {}; } }
-  class FakeMesh extends FakeObject {
-    constructor(geometry, material) {
-      super();
-      this.geometry = geometry;
-      this.material = material;
-      this.isMesh = true;
-    }
-    clone() {
-      const clone = new FakeMesh(this.geometry, this.material);
-      clone.position.set(this.position.x, this.position.y, this.position.z);
-      clone.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
-      return clone;
-    }
-  }
-  const floor = new FakeGroup();
-  const caches = [{}, {}];
-  const meshFactory = createBestiaryMeshFactory({
-    THREE: {
-      Group: FakeGroup,
-      Mesh: FakeMesh,
-      SphereGeometry: FakeGeometry,
-      PlaneGeometry: FakeGeometry,
-      CylinderGeometry: FakeGeometry,
-      TorusGeometry: FakeGeometry,
-      ConeGeometry: FakeGeometry,
-      BoxGeometry: FakeGeometry,
-      MeshBasicMaterial: FakeMaterial,
-      DoubleSide: 2,
-    },
-    getFloorGroup: () => floor,
-    getCaches: () => caches,
-    keepGeometry(geometry) { geometry.userData.keep = true; return geometry; },
-    spectralMaterial: (options) => new FakeMaterial(options),
-    material: (options) => new FakeMaterial(options),
-    lathe: (points, segments) => new FakeGeometry(points, segments),
-    faceTexture: (kind) => ({ kind, userData: { keep: true } }),
-  });
+  const { floor, meshFactory } = createMeshFactoryHarness();
 
   let manguanguasGroup;
+  const anatomyMarkers = [];
+  const silhouetteGeometries = [];
+  const expectedAnatomy = {
+    sombra: 'sombra-abstract-wraith',
+    sayona: 'sayona-white-saya',
+    llorona: 'llorona-skeletal-veil',
+    silbon: 'silbon-extreme-height',
+    duende: 'duende-small-red-hat',
+    manguanguas: 'manguanguas-coffee-visitor',
+  };
   for (const [index, kind] of [...BESTIARY_KINDS].entries()) {
     const visuals = meshFactory(kind, index + 1, index + 2);
     assert.equal(visuals.group.position.x, index + 1);
     assert.equal(visuals.group.position.z, index + 2);
     assert.ok(visuals.group.children.length > 0);
+
+    const meshes = [];
+    const visit = (node) => {
+      if (node.isMesh) meshes.push(node);
+      for (const child of node.children) visit(child);
+    };
+    visit(visuals.group);
+    const shadowCasters = meshes.filter((mesh) => mesh.userData.shadowCaster === true);
+    assert.equal(shadowCasters.length, 1, `${kind} must expose exactly one shadow silhouette`);
+    assert.equal(shadowCasters[0].userData.anatomy, expectedAnatomy[kind]);
+    anatomyMarkers.push(shadowCasters[0].userData.anatomy);
+    silhouetteGeometries.push(shadowCasters[0].geometry);
+
+    assert.equal(visuals.eyes?.length, 2, `${kind} should expose its visible eye pair`);
+    assert.equal(visuals.eyelids?.length, visuals.eyes.length, `${kind} needs one lid per eye`);
+    for (const lid of visuals.eyelids) {
+      assert.equal(lid.userData.eyeLid, true);
+      assert.ok(lid.scale.x > 0 && lid.scale.y > 0 && lid.scale.z > 0);
+    }
     if (kind === 'manguanguas') manguanguasGroup = visuals.group;
   }
+  assert.equal(new Set(anatomyMarkers).size, BESTIARY_KINDS.size);
+  assert.equal(new Set(silhouetteGeometries).size, BESTIARY_KINDS.size);
   const coffeeCup = manguanguasGroup.children.find((child) => child.name === 'coffee-cup');
   assert.equal(coffeeCup?.children.length, 3, 'Manguanguas must carry a cup, coffee, and handle');
   assert.equal(floor.children.length, BESTIARY_KINDS.size);
+});
+
+test('arm segments stay welded to their shoulder and elbow joints', () => {
+  const { meshFactory } = createMeshFactoryHarness();
+  const jointTolerance = 0.005;
+  for (const kind of ['sayona', 'llorona', 'silbon', 'manguanguas']) {
+    const visuals = meshFactory(kind, 0, 0);
+    const meshes = [];
+    const visit = (node) => {
+      if (node.isMesh) meshes.push(node);
+      for (const child of node.children) visit(child);
+    };
+    visit(visuals.group);
+    const parts = (name) => meshes.filter((mesh) => mesh.userData.part === name);
+    const shoulders = parts('shoulder');
+    const elbows = parts('elbow');
+    const uppers = parts('upper');
+    const forearms = parts('fore');
+    const hands = parts('hand');
+    assert.equal(uppers.length, 2, `${kind} needs a pair of upper arms`);
+    assert.equal(forearms.length, 2, `${kind} needs a pair of forearms`);
+    assert.equal(shoulders.length, 2, `${kind} needs a pair of shoulders`);
+    assert.equal(elbows.length, 2, `${kind} needs a pair of elbows`);
+    assert.equal(hands.length, 2, `${kind} needs a pair of hands`);
+
+    const near = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < jointTolerance;
+    const endpoint = (mesh, direction) => {
+      const length = mesh.geometry.args[2];
+      const angle = mesh.rotation.z;
+      return {
+        x: mesh.position.x - Math.sin(angle) * direction * length / 2,
+        y: mesh.position.y + Math.cos(angle) * direction * length / 2,
+      };
+    };
+    for (const upper of uppers) {
+      assert.ok(shoulders.some((shoulder) => near(shoulder.position, endpoint(upper, 1))),
+        `${kind}: an upper arm starts away from its shoulder`);
+      const bottom = endpoint(upper, -1);
+      assert.ok(elbows.some((elbow) => near(elbow.position, bottom)),
+        `${kind}: an upper arm ends away from its elbow`);
+    }
+    for (const fore of forearms) {
+      assert.ok(elbows.some((elbow) => near(elbow.position, endpoint(fore, 1))),
+        `${kind}: a forearm starts away from its elbow`);
+      const wrist = endpoint(fore, -1);
+      assert.ok(hands.some((hand) => near(hand.position, wrist)),
+        `${kind}: a forearm ends away from its hand`);
+    }
+  }
+});
+
+test('Silbón carries the bone sack from his hand instead of levitating it', () => {
+  const { meshFactory } = createMeshFactoryHarness();
+  const visuals = meshFactory('silbon', 0, 0);
+  const meshes = [];
+  const visit = (node) => {
+    if (node.isMesh) meshes.push(node);
+    for (const child of node.children) visit(child);
+  };
+  visit(visuals.group);
+  const sack = meshes.find((mesh) => mesh.userData.part === 'sack');
+  const hands = meshes.filter((mesh) => mesh.userData.part === 'hand');
+  assert.ok(sack, 'silbon must carry a sack');
+  assert.equal(hands.length, 2, 'silbon needs a pair of hands');
+
+  const sackTop = sack.position.y + sack.geometry.args[0] * sack.scale.y;
+  const nearest = hands.reduce((best, hand) => {
+    const handBottom = hand.position.y - (hand.geometry.args[1] * hand.scale.y) / 2;
+    const distance = Math.hypot(hand.position.x - sack.position.x, handBottom - sackTop);
+    return distance < best ? distance : best;
+  }, Infinity);
+
+  assert.ok(nearest < 0.12, `the sack floats ${nearest.toFixed(2)} away from the nearest hand`);
+});
+
+test('eyelids blink deterministically on staggered schedules without per-frame meshes or arrays', () => {
+  const { meshFactory } = createMeshFactoryHarness();
+  const bestiary = createBestiary({ createVector3: vector3, meshFactory });
+  const first = bestiary.spawn('sombra', 0, 0);
+  const second = bestiary.spawn('sombra', 1, 0);
+  assert.ok(first.eyelids?.length, 'Sombra should expose eyelids to its animation path');
+  assert.ok(second.eyelids?.length, 'Sombra should expose eyelids to its animation path');
+
+  const firstLids = first.eyelids;
+  const firstChildCount = first.group.children.length;
+  bestiary.animate(40, 0.04);
+  assert.ok(firstLids.every((lid) => lid.scale.y > lid.userData.openScaleY), 'first spawn should close its lids');
+  assert.ok(second.eyelids.every((lid) => lid.scale.y === lid.userData.openScaleY), 'second spawn should remain open');
+
+  bestiary.animate(200, 0.16);
+  assert.ok(firstLids.every((lid) => lid.scale.y === lid.userData.openScaleY), 'first spawn should reopen');
+  bestiary.animate(1250, 1.05);
+  assert.ok(firstLids.every((lid) => lid.scale.y === lid.userData.openScaleY), 'first schedule should still be open');
+  assert.ok(second.eyelids.every((lid) => lid.scale.y > lid.userData.openScaleY), 'second spawn should blink later');
+
+  const replay = createBestiary({ createVector3: vector3, meshFactory });
+  const replayFirst = replay.spawn('sombra', 0, 0);
+  const replaySecond = replay.spawn('sombra', 1, 0);
+  replay.animate(1250, 1.05);
+  assert.equal(replayFirst.eyelids[0].scale.y, firstLids[0].scale.y);
+  assert.equal(replaySecond.eyelids[0].scale.y, second.eyelids[0].scale.y);
+
+  bestiary.animate(1400, 0.15);
+  assert.ok(second.eyelids.every((lid) => lid.scale.y === lid.userData.openScaleY), 'second spawn should reopen');
+  assert.strictEqual(first.eyelids, firstLids);
+  assert.equal(first.group.children.length, firstChildCount);
+});
+
+test('Sayona reveal keeps red irises and fangs visible while eyelids stay out of the transition', () => {
+  const { meshFactory } = createMeshFactoryHarness();
+  const bestiary = createBestiary({ createVector3: vector3, meshFactory, random: () => 0.5 });
+  const sayona = bestiary.spawn('sayona', 0, 0);
+  assert.equal(sayona.eyelids?.length, 2);
+  assert.equal(sayona.fangs?.length, 2);
+  assert.ok(Number.isFinite(sayona.blinkPeriod));
+  sayona.delay = 0;
+  sayona.group.visible = true;
+  sayona.calm = false;
+
+  const duringBlink = (sayona.blinkPeriod - sayona.blinkOffset + 0.04) * 1000;
+  bestiary.animate(duringBlink, 0.5);
+
+  assert.equal(sayona.revealT, 0.8);
+  assert.ok(sayona.faceTrue.material.opacity > 0.5);
+  assert.ok(sayona.faceCalm.material.opacity < 0.5);
+  assert.ok(sayona.irises.every((iris) => iris.material === iris.userData.trueMat));
+  assert.ok(sayona.fangs.every((fang) => fang.visible));
+  assert.ok(sayona.eyelids.every((lid) => lid.scale.y === lid.userData.openScaleY));
 });
 
 test('Llorona preserves her sob cycle and announces pursuit within sensing range', () => {
