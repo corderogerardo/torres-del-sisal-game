@@ -42,12 +42,17 @@ function onPath(name) {
 
 function findChrome() {
   const configured = process.env.CHROME_PATH;
-  if (configured && !usable(configured)) console.warn(`# CHROME_PATH is not an executable file: ${configured}`);
-  return [
-    configured,
+  if (configured) {
+    if (usable(configured)) return configured;
+    console.warn(`# CHROME_PATH is not an executable file: ${configured}`);
+  }
+  const appBundle = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
     '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+  ].find(usable);
+  if (appBundle) return appBundle;
+  return [
     onPath('google-chrome'), onPath('google-chrome-stable'), onPath('chromium'), onPath('chromium-browser'),
   ].find((candidate) => candidate && usable(candidate)) ?? null;
 }
